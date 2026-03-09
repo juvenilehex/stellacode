@@ -1,9 +1,9 @@
 /** Observatory color palette */
 
 export const COLORS = {
-  // Background
-  bg: '#08061A',
-  bgFog: '#08061A',
+  // Background — dark charcoal, no blue/purple tint
+  bg: '#0C0C10',
+  bgFog: '#0C0C10',
 
   // Node types
   directory: '#C7A4FF',   // purple - structure
@@ -17,16 +17,16 @@ export const COLORS = {
   directoryEdge: '#4a4070',  // muted purple
   coChangeEdge: '#7EDCCC',   // teal
 
-  // Stars (background)
-  starPrimary: '#CBB8FF',
-  starSecondary: '#FF8EC8',
-  starTertiary: '#89C4F4',
+  // Stars (background) — cooler, less saturated
+  starPrimary: '#B8B8CC',
+  starSecondary: '#C8A0B0',
+  starTertiary: '#8899AA',
 
   // UI
   textPrimary: '#E8E0FF',
   textSecondary: '#9890B0',
-  panelBg: 'rgba(8, 6, 26, 0.85)',
-  panelBorder: 'rgba(199, 164, 255, 0.15)',
+  panelBg: 'rgba(12, 12, 16, 0.88)',
+  panelBorder: 'rgba(180, 180, 200, 0.12)',
 
   // Agent
   agentClaude: '#FF8EC8',
@@ -49,27 +49,34 @@ export const COLORS = {
   branchDirty: '#FFD866',
 
   // Bloom
-  bloomStrength: 1.0,
-  bloomRadius: 0.5,
-  bloomThreshold: 0.85,
+  bloomStrength: 0.6,
+  bloomRadius: 0.4,
+  bloomThreshold: 0.9,
 } as const;
 
-export function getNodeColor(type: string, language?: string): string {
-  if (type === 'directory') return COLORS.directory;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyColorMap = any;
+
+/** Get node color. Pass custom colors from settings store to use user overrides. */
+export function getNodeColor(type: string, language?: string, custom?: AnyColorMap): string {
+  const c = custom ?? COLORS;
+  if (type === 'directory') return c.directory ?? COLORS.directory;
   switch (language) {
-    case 'typescript': return COLORS.typescript;
-    case 'javascript': return COLORS.javascript;
-    case 'python': return COLORS.python;
-    default: return COLORS.unknown;
+    case 'typescript': case 'tsx': return c.typescript ?? COLORS.typescript;
+    case 'javascript': case 'jsx': return c.javascript ?? COLORS.javascript;
+    case 'python': return c.python ?? COLORS.python;
+    default: return c.unknown ?? COLORS.unknown;
   }
 }
 
-export function getEdgeColor(type: string): string {
+/** Get edge color. Pass custom colors from settings store to use user overrides. */
+export function getEdgeColor(type: string, custom?: AnyColorMap): string {
+  const c = custom ?? COLORS;
   switch (type) {
-    case 'import': return COLORS.importEdge;
-    case 'directory': return COLORS.directoryEdge;
-    case 'co-change': return COLORS.coChangeEdge;
-    default: return COLORS.directoryEdge;
+    case 'import': return c.importEdge ?? COLORS.importEdge;
+    case 'directory': return c.directoryEdge ?? COLORS.directoryEdge;
+    case 'co-change': return c.coChangeEdge ?? COLORS.coChangeEdge;
+    default: return c.directoryEdge ?? COLORS.directoryEdge;
   }
 }
 
@@ -91,6 +98,17 @@ export function getCommitTypeColor(type: string): string {
     case 'test': return COLORS.commitTest;
     case 'perf': return COLORS.commitPerf;
     default: return COLORS.commitOther;
+  }
+}
+
+/** Map a node to its legend filter key */
+export function getNodeFilterKey(type: string, language?: string): string {
+  if (type === 'directory') return 'directory';
+  switch (language) {
+    case 'typescript': return 'typescript';
+    case 'javascript': return 'javascript';
+    case 'python': return 'python';
+    default: return '';
   }
 }
 

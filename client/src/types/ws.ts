@@ -6,7 +6,8 @@ import type { AgentEvent } from './agent';
 export type WsServerMessage =
   | { type: 'connected'; payload: { timestamp: number } }
   | { type: 'graph:update'; payload: GraphData }
-  | { type: 'file:change'; payload: FileChangePayload };
+  | { type: 'file:change'; payload: FileChangePayload }
+  | { type: 'agent:live'; payload: AgentEvent };
 
 export interface FileChangePayload {
   type: 'add' | 'change' | 'unlink';

@@ -43,7 +43,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
           style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium" style={{ color: COLORS.textPrimary }}>
-              StellaAgent
+              StellaCode
             </span>
             <span className="text-[10px] px-1.5 py-0.5 rounded"
               style={{ background: 'rgba(199,164,255,0.1)', color: COLORS.directory }}>
@@ -83,7 +83,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
             </div>
             <div>
               Existing tools show snapshots of the current state.
-              StellaAgent adds time -- git history reveals hidden coupling,
+              StellaCode adds time -- git history reveals hidden coupling,
               hot files, and the traces AI agents leave behind.
             </div>
           </div>

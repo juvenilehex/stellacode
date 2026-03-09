@@ -40,7 +40,7 @@ export function Sidebar() {
       <div className="px-3 py-2" style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium" style={{ color: COLORS.textPrimary }}>
-            StellaAgent
+            StellaCode
           </span>
           <span className="text-[10px] px-1.5 py-0.5 rounded"
             style={{ background: 'rgba(199,164,255,0.1)', color: COLORS.directory }}>

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#08061A"/>
+
+  <!-- Main star (center) -->
+  <circle cx="256" cy="220" r="42" fill="#89C4F4" opacity="0.95"/>
+  <circle cx="256" cy="220" r="68" fill="#89C4F4" opacity="0.15"/>
+  <circle cx="256" cy="220" r="90" fill="#89C4F4" opacity="0.06"/>
+
+  <!-- Top-right star -->
+  <circle cx="390" cy="110" r="22" fill="#C7A4FF" opacity="0.9"/>
+  <circle cx="390" cy="110" r="38" fill="#C7A4FF" opacity="0.12"/>
+
+  <!-- Bottom-left star -->
+  <circle cx="110" cy="330" r="26" fill="#89C4F4" opacity="0.9"/>
+  <circle cx="110" cy="330" r="44" fill="#89C4F4" opacity="0.12"/>
+
+  <!-- Top-left star -->
+  <circle cx="120" cy="120" r="16" fill="#FFD866" opacity="0.85"/>
+  <circle cx="120" cy="120" r="28" fill="#FFD866" opacity="0.1"/>
+
+  <!-- Bottom-right star -->
+  <circle cx="400" cy="340" r="20" fill="#7EDCCC" opacity="0.85"/>
+  <circle cx="400" cy="340" r="34" fill="#7EDCCC" opacity="0.1"/>
+
+  <!-- Small accent stars -->
+  <circle cx="310" cy="370" r="12" fill="#89C4F4" opacity="0.6"/>
+  <circle cx="190" cy="180" r="10" fill="#C7A4FF" opacity="0.5"/>
+  <circle cx="350" cy="240" r="8" fill="#FFD866" opacity="0.5"/>
+  <circle cx="160" cy="260" r="7" fill="#89C4F4" opacity="0.4"/>
+  <circle cx="440" cy="220" r="9" fill="#C7A4FF" opacity="0.45"/>
+  <circle cx="70" cy="200" r="6" fill="#FFD866" opacity="0.35"/>
+
+  <!-- Constellation lines -->
+  <line x1="256" y1="220" x2="390" y2="110" stroke="#FF8EC8" stroke-width="2" opacity="0.35"/>
+  <line x1="256" y1="220" x2="110" y2="330" stroke="#FF8EC8" stroke-width="2" opacity="0.35"/>
+  <line x1="256" y1="220" x2="120" y2="120" stroke="#FF8EC8" stroke-width="2" opacity="0.35"/>
+  <line x1="256" y1="220" x2="400" y2="340" stroke="#FF8EC8" stroke-width="2" opacity="0.35"/>
+  <line x1="120" y1="120" x2="390" y2="110" stroke="#FF8EC8" stroke-width="1.5" opacity="0.2"/>
+  <line x1="110" y1="330" x2="310" y2="370" stroke="#FF8EC8" stroke-width="1.5" opacity="0.2"/>
+  <line x1="400" y1="340" x2="310" y2="370" stroke="#FF8EC8" stroke-width="1.5" opacity="0.2"/>
+  <line x1="256" y1="220" x2="440" y2="220" stroke="#FF8EC8" stroke-width="1.5" opacity="0.2"/>
+
+  <!-- Co-change line (teal, dashed) -->
+  <line x1="120" y1="120" x2="110" y2="330" stroke="#7EDCCC" stroke-width="1.5" opacity="0.25" stroke-dasharray="8 5"/>
+  <line x1="390" y1="110" x2="400" y2="340" stroke="#7EDCCC" stroke-width="1.5" opacity="0.25" stroke-dasharray="8 5"/>
+
+  <!-- Text -->
+  <text x="256" y="460" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="600" fill="#E8E0F0" letter-spacing="6">STELLACODE</text>
+</svg>

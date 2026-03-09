@@ -81,6 +81,14 @@ export class AgentTracker {
     this.isGit = isGitRepo(this.rootDir);
   }
 
+  updateTarget(newRoot: string) {
+    this.rootDir = path.resolve(newRoot);
+    (this as { isGit: boolean }).isGit = isGitRepo(this.rootDir);
+    this.watchEvents = [];
+    this.sessions = [];
+    this.eventId = 0;
+  }
+
   // ── Git Log Analysis ──
 
   /** Parse full git log into structured commits */
@@ -189,6 +197,32 @@ export class AgentTracker {
     }
 
     return coChanges.sort((a, b) => b.coupling - a.coupling).slice(0, CONFIG.git.maxCoChangePairs);
+  }
+
+  // ── Per-file Git Metadata ──
+
+  /** Compute per-file last modified time and commit count from git log */
+  getFileGitMeta(commits?: GitCommit[]): Map<string, { lastModified: number; commitCount: number }> {
+    const result = new Map<string, { lastModified: number; commitCount: number }>();
+    if (!this.isGit) return result;
+
+    const data = commits ?? this.getGitLog(CONFIG.git.statsLogLimit);
+
+    for (const commit of data) {
+      for (const file of commit.files) {
+        const existing = result.get(file);
+        if (existing) {
+          existing.commitCount++;
+          if (commit.timestamp > existing.lastModified) {
+            existing.lastModified = commit.timestamp;
+          }
+        } else {
+          result.set(file, { lastModified: commit.timestamp, commitCount: 1 });
+        }
+      }
+    }
+
+    return result;
   }
 
   // ── Aggregate Stats ──

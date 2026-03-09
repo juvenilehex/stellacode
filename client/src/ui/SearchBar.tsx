@@ -23,7 +23,7 @@ export function SearchBar() {
   }, [selectNode]);
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
+    <div className="pointer-events-auto">
       <div className="relative">
         <input
           type="text"

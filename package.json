@@ -1,5 +1,5 @@
 {
-  "name": "stellaagent",
+  "name": "stellacode",
   "version": "0.1.0",
   "private": true,
   "description": "Code Observatory — observe your codebase as a living constellation",
@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
+    "playwright": "^1.58.2",
     "typescript": "^5.7.3"
   },
   "engines": {

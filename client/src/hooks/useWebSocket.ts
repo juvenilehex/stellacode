@@ -34,6 +34,9 @@ export function useWebSocket() {
               addEvent(msg.payload.agentEvent);
             }
             break;
+          case 'agent:live':
+            addEvent(msg.payload);
+            break;
         }
       } catch (err) {
         console.error('[WS] Parse error:', err);

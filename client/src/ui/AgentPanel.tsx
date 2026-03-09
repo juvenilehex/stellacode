@@ -7,7 +7,7 @@ export function AgentPanel() {
   const togglePanel = useAgentStore(s => s.togglePanel);
 
   return (
-    <div className="fixed bottom-4 right-4 pointer-events-auto">
+    <div className="pointer-events-auto">
       {/* Toggle button */}
       <button
         onClick={togglePanel}

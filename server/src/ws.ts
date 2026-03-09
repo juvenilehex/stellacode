@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
 
 /** All message types the server can broadcast */
-export type WsMessageType = 'connected' | 'graph:update' | 'file:change';
+export type WsMessageType = 'connected' | 'graph:update' | 'file:change' | 'agent:live';
 
 export class WsBroadcaster {
   private wss: WebSocketServer;

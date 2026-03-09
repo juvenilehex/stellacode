@@ -1,23 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
 import { COLORS, getCommitTypeColor, getCommitTypeLabel, getAgentColor } from '../utils/colors';
+import { useGraphStore } from '../store/graph-store';
 import type { GitStats, GitCommit } from '../types/agent';
 
 export function GitPanel() {
   const [stats, setStats] = useState<GitStats | null>(null);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'timeline' | 'types' | 'hot' | 'coupling'>('timeline');
+  const graphVersion = useGraphStore(s => s.graphVersion);
 
   useEffect(() => {
     fetch('/api/git/stats')
       .then(r => r.ok ? r.json() : null)
       .then(setStats)
       .catch(() => {});
-  }, []);
+  }, [graphVersion]);
 
   if (!stats || stats.totalCommits === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 pointer-events-auto">
+    <div className="pointer-events-auto">
       {/* Branch indicator + toggle */}
       <button
         onClick={() => setOpen(!open)}

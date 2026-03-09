@@ -6,6 +6,7 @@ import { computeLayout } from './layout.js';
 
 export interface BuildGraphOptions {
   coChanges?: GitCoChange[];
+  fileGitMeta?: Map<string, { lastModified: number; commitCount: number }>;
 }
 
 export function buildGraph(files: ParsedFile[], rootDir: string, options?: BuildGraphOptions): GraphData {
@@ -63,6 +64,7 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
       meta: {
         symbols: file.symbols,
         imports: file.imports,
+        ...(options?.fileGitMeta?.get(file.relativePath) ?? {}),
       },
     };
     nodes.push(node);

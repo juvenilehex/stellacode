@@ -1,72 +1,92 @@
-# StellaAgent
+# StellaCode
 
-> **Code Observatory** — 코드 우주를 관측하다
+**Code Observatory** -- observe your codebase as a living constellation.
 
-## Problem
+![StellaCode](screenshots/stellacode-start.png)
 
-바이브코딩 시대. 코드는 폭발적으로 늘어나는데, 구조는 보이지 않는다. 어디가 어디와 연결되어 있는지, AI가 어디를 얼마나 바꿨는지, 자주 같이 바뀌는 파일이 뭔지 — 아무도 모른다. 기존 도구들은 현재 상태의 스냅샷만 보여준다. 하지만 코드는 매일 변한다.
+## Why
 
-## Solution
+In the age of vibe coding, code appears faster than anyone can read it. You talk to an LLM, files multiply, and suddenly you have a project you built but don't quite understand. What connects to what? What did the AI actually change? What keeps breaking together?
 
-천문대가 우주를 관측하듯, StellaAgent는 코드 우주를 관측한다. 정적 분석으로 "지금"을, git 분석으로 "어떻게 여기까지 왔는지"를 보여준다. 둘을 합치면 코드가 **어디로 가고 있는지** 보인다.
+Most tools show you text. StellaCode shows you stars.
+
+Every file becomes a star. Every import draws a constellation line. Every hidden coupling -- files that always change together but share no import -- glows as a teal thread you never knew existed. And when an AI agent touches your code, it leaves a trail across the sky.
+
+The goal is simple: **understand your project at a glance, and feel something while you do.**
+
+If you've been staring at strings of text in a dark room for hours, maybe watching your code quietly glow and orbit can offer a moment of calm. Your project is alive. It's growing. And now you can see it.
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/stellaagent.git
-cd stellaagent
+git clone https://github.com/YOUR_USERNAME/stellacode.git
+cd stellacode
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173. 특정 프로젝트를 관측하려면:
+Open http://localhost:5173 and enter the path to any project. Or:
 
 ```bash
 STELLA_TARGET=/path/to/your/project npm run dev
 ```
 
+Three commands. That's it.
+
 ## What You See
 
-| 천체 | 의미 |
-|------|------|
-| **Star** (별) | 파일. 크기 = 심볼 수, 색 = 언어 |
-| **Constellation Line** (성좌선) | import 관계. 선언된 의존성 |
-| **Co-change** (은하수) | git에서 발견한 숨겨진 의존성. teal 색 |
-| **Trail** (유성) | AI 에이전트가 지나간 흔적 |
-| **Pulse** (맥동) | 실시간 파일 변경 |
-| **Diamond** (다이아몬드) | 디렉토리 |
+| Celestial body | What it means |
+|----------------|---------------|
+| **Star** | A file. Size = complexity (symbol count). Color = language. |
+| **Constellation Line** | An import relationship. The declared wiring of your code. |
+| **Co-change Thread** | Files that change together in git, with no import between them. Hidden coupling. |
+| **Trail** | The path an AI agent left across your codebase. |
+| **Pulse** | A file changing right now. |
+| **Diamond** | A directory. The structure that holds stars together. |
 
-## Git Intelligence
+![StellaCode constellation view](screenshots/03-constellation-view.png)
 
-StellaAgent의 차별점. git history를 1등 시민(first-class)으로 취급한다.
+## Features
 
-- **Conventional Commit 파싱**: `feat`, `fix`, `refactor` 등 색상 코드 배지
-- **Co-change 감지**: 자주 같이 바뀌는 파일 = 숨겨진 의존성 (import에 없는 커플링)
-- **Hot files**: 가장 자주 수정되는 파일 랭킹
-- **Activity heatmap**: 30일 커밋 활동 시각화
-- **AI 에이전트 추적**: Claude Code, Copilot, Cursor, Aider, Codeium, Tabnine 커밋 감지
-- **Branch status**: 현재 브랜치 + clean/dirty 표시
+### Code Structure
+- 3D force-directed graph with golden ratio spiral layout
+- Files as stars, directories as diamonds, imports as constellation lines
+- Language detection (TypeScript, JavaScript, Python) with color coding
+- Search, filter by language, click to inspect
 
-## Controls
+### Git Intelligence
+- **Co-change detection** -- finds files that always change together, even without imports. These hidden dependencies are often where bugs hide.
+- **Conventional commit parsing** -- feat, fix, refactor badges on each commit
+- **Hot files** -- most frequently modified files, ranked
+- **Activity heatmap** -- 30-day commit visualization
+- **Branch status** -- current branch, clean/dirty state
 
-| Action | Input |
-|--------|-------|
-| Rotate | Click + drag |
-| Zoom | Scroll wheel |
-| Focus node | Click a star |
-| Reset view | ESC |
-| Search | Type in search bar |
+### AI Agent Tracking
+- Detects commits from Claude Code, Copilot, Cursor, Aider, Codeium, and Tabnine
+- Agent trails show which areas each AI has touched
+- See the boundary between human and machine work
+
+### Observe Mode
+Press OBSERVE to hide all UI and watch the stars quietly. Just your code, breathing in the dark.
+
+![StellaCode inspecting a file](screenshots/stellacode-detail.png)
+*Click any star to see its symbols, connections, and place in the constellation.*
 
 ## Architecture
 
 ```
-Browser (React + R3F)          Server (Express)
-├── Three.js scene              ├── Scanner (directory walker)
-├── Zustand stores              ├── Parser (TS/JS/Python regex)
-├── UI panels                   ├── Graph builder + force layout
-└── WebSocket client            ├── WebSocket broadcaster
-                                ├── File watcher (chokidar)
-                                └── Agent tracker (.claude/ + git)
+Browser (React + R3F)            Server (Express)
+├── Three.js 3D scene            ├── Directory scanner
+├── Zustand stores               ├── Code parser (TS/JS/Python)
+├── UI panels                    ├── Graph builder + force layout
+└── WebSocket client             ├── WebSocket broadcaster
+                                 ├── File watcher (chokidar)
+                                 └── Agent tracker (git + .claude/)
+```
+
+```
+Data flow:
+  Your Project --> Scanner --> Parser --> Graph Builder --> Force Layout --> WebSocket --> 3D Scene
 ```
 
 ### Tech Stack
@@ -78,70 +98,68 @@ Browser (React + R3F)          Server (Express)
 | 3D | React Three Fiber + drei + postprocessing |
 | State | Zustand |
 | CSS | Tailwind CSS 4 |
-| Server | Express + ws + chokidar |
+| Server | Express 5 + ws + chokidar |
 | Parser | Regex-based (TS/JS/Python) |
 
-### API
+## API
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/graph` | Full graph (nodes + edges + stats) |
-| `GET /api/graph/node/:id` | Node detail with connections |
+| `GET /api/graph` | Full graph (nodes, edges, stats) |
+| `GET /api/graph/node/:id` | Single node with connections |
 | `GET /api/stats` | Project statistics |
-| `GET /api/agent/events` | Agent activity events |
-| `GET /api/agent/sessions` | Active agent sessions |
-| `GET /api/git/stats` | Git stats (commits, branches, heatmap, co-changes) |
-| `GET /api/git/log?limit=50` | Parsed git log with conventional commit types |
-| `GET /api/git/branches` | Branch list |
+| `GET /api/git/stats` | Git analysis (commits, branches, heatmap, co-changes) |
+| `GET /api/git/log?limit=50` | Parsed git log |
 | `GET /api/git/co-changes` | Temporal coupling analysis |
+| `GET /api/agent/events` | AI agent activity events |
+| `GET /api/agent/sessions` | Active agent sessions |
+| `POST /api/target` | Change target directory |
 
-### WebSocket
+WebSocket at `ws://localhost:3001/ws` pushes `graph:update` and `file:change` events.
 
-| Event | Direction | Description |
-|-------|-----------|-------------|
-| `connected` | Server → Client | Initial connection |
-| `graph:update` | Server → Client | Full graph after file change |
-| `file:change` | Server → Client | Individual file change |
+## Controls
 
-## Project Structure
-
-```
-stellaagent/
-├── server/src/
-│   ├── index.ts          # Express + WS server
-│   ├── watcher.ts        # File system watcher
-│   ├── ws.ts             # WebSocket broadcaster
-│   ├── parser/           # Code parsers (TS/JS/Python)
-│   ├── graph/            # Graph builder + force layout
-│   └── agent/            # AI agent tracker
-├── client/src/
-│   ├── three/            # R3F 3D components
-│   ├── ui/               # UI panels (sidebar, detail, git, agent)
-│   ├── store/            # Zustand state
-│   ├── hooks/            # Data fetching + WebSocket
-│   ├── types/            # TypeScript types
-│   └── utils/            # Colors, helpers
-└── docs/                 # Architecture, decisions, use cases
-```
+| Action | Input |
+|--------|-------|
+| Rotate | Click + drag |
+| Zoom | Scroll wheel |
+| Focus a star | Click it |
+| Star info | Hover |
+| Reset view | ESC |
+| Search | Type in search bar |
+| Observe mode | OBSERVE button in settings |
 
 ## Development
 
 ```bash
-npm run dev       # Start both server + client
+npm run dev       # Start server + client
 npm run build     # Production build
 npm run lint      # Type-check both packages
 npm test          # Run server tests
 ```
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed setup.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Read [VISION.md](VISION.md) first.
+```bash
+# Dogfooding -- observe StellaCode with StellaCode
+STELLA_TARGET=./ npm run dev
+```
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for v0.1 → v1.0 evolution plan.
+StellaCode is at **v0.2**. The foundation works. Here's where it's going:
+
+- **v0.3** -- Deep analysis: complexity heatmap, circular dependency detection, dead code detection
+- **v0.4** -- Multi-agent observatory: real-time agent detection, agent territory map, human vs AI diff
+- **v0.5** -- Time travel: project evolution timeline, code age visualization, commit replay
+- **v1.0** -- Full observatory: dashboard, plugin system, CI/CD integration
+
+## Feedback
+
+StellaCode is not accepting code contributions right now, but feedback is welcome.
+
+- **Discord**: [Join the server](https://discord.gg/Mpvn4xEx) -- bug reports, feature ideas, or just share your constellation
+- **GitHub Issues**: open an issue if you prefer
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
 

@@ -1,8 +1,23 @@
 node_modules/
 dist/
 .env
+.env.*
 *.log
 .DS_Store
 Thumbs.db
 .vite/
 *.tsbuildinfo
+
+# Internal dev scripts
+inspect.mjs
+inspect2.mjs
+
+# Internal dev screenshots (keep only README images)
+screenshots/EVOLUTION_ROUND_1.md
+screenshots/01-*.png
+screenshots/02-*.png
+screenshots/04-*.png
+screenshots/05-*.png
+screenshots/06-*.png
+screenshots/10-*.png
+screenshots/r2-*.png

@@ -1,5 +1,54 @@
 @import "tailwindcss";
 
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(0); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+
+.animate-fade-in {
+  opacity: 0;
+  animation: fade-in 0.8s ease-out forwards;
+}
+
+.animate-scan-line {
+  background: linear-gradient(90deg, transparent, rgba(180, 180, 200, 0.3), transparent);
+  animation: scan-line 2s ease-in-out infinite;
+}
+
+/* Title glow — soft starlight shimmer around the text */
+.stella-title {
+  text-shadow:
+    0 0 8px rgba(220, 220, 240, 0.4),
+    0 0 20px rgba(220, 220, 240, 0.25),
+    0 0 50px rgba(200, 200, 230, 0.15),
+    0 0 100px rgba(200, 200, 230, 0.08);
+  animation: title-glow 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes title-glow {
+  0% {
+    text-shadow:
+      0 0 8px rgba(220, 220, 240, 0.35),
+      0 0 20px rgba(220, 220, 240, 0.2),
+      0 0 50px rgba(200, 200, 230, 0.12),
+      0 0 100px rgba(200, 200, 230, 0.06);
+  }
+  100% {
+    text-shadow:
+      0 0 10px rgba(220, 220, 240, 0.5),
+      0 0 28px rgba(220, 220, 240, 0.35),
+      0 0 60px rgba(200, 200, 230, 0.2),
+      0 0 120px rgba(200, 200, 230, 0.1);
+  }
+}
+
 ::-webkit-scrollbar {
   width: 4px;
 }
@@ -9,10 +58,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(199, 164, 255, 0.2);
+  background: rgba(180, 180, 200, 0.2);
   border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(199, 164, 255, 0.4);
+  background: rgba(180, 180, 200, 0.35);
 }

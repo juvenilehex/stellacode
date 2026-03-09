@@ -11,7 +11,7 @@ export function Breadcrumb() {
   const parts = path.split('/');
 
   return (
-    <div className="fixed top-14 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1 rounded-md text-[10px] pointer-events-auto"
+    <div className="flex items-center gap-1 px-3 py-1 rounded-md text-[10px] pointer-events-auto"
       style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}` }}>
       {parts.map((part, i) => {
         const isLast = i === parts.length - 1;

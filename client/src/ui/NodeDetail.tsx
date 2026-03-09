@@ -28,7 +28,7 @@ export function NodeDetail() {
   const color = getNodeColor(node.type, node.language);
 
   return (
-    <div className="fixed top-4 right-4 w-72 max-h-[80vh] overflow-y-auto rounded-lg text-xs select-none pointer-events-auto"
+    <div className="w-72 max-h-[80vh] overflow-y-auto rounded-lg text-xs select-none pointer-events-auto"
       style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}` }}>
       {/* Header */}
       <div className="px-3 py-2 flex items-center justify-between"

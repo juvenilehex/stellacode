@@ -1,19 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useGraphStore } from '../store/graph-store';
-
-export type LODLevel = 'project' | 'directory' | 'file';
+import type { LODLevel } from '../store/graph-store';
 
 const THRESHOLDS = {
-  project: 40,    // Camera > 40 units → show directory clusters only
-  directory: 15,  // Camera 15-40 → show files
-  file: 5,        // Camera < 15 → show symbols (future)
+  project: 40,    // Camera > 40 units: directory clusters only
+  directory: 15,  // Camera 15-40: show files
+  file: 5,        // Camera < 15: full detail
 };
 
-/** Reactive LOD controller - updates store based on camera distance */
 export function LODController() {
   const camera = useThree(s => s.camera);
-  const lastLevel = useRef<LODLevel>('project');
+  const lastLevel = useRef<LODLevel>('directory');
+  const setLodLevel = useGraphStore(s => s.setLodLevel);
 
   useFrame(() => {
     const dist = camera.position.length();
@@ -29,7 +28,7 @@ export function LODController() {
 
     if (level !== lastLevel.current) {
       lastLevel.current = level;
-      // Future: update store with LOD level for conditional rendering
+      setLodLevel(level);
     }
   });
 

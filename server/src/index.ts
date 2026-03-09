@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { parseProject } from './parser/index.js';
@@ -7,6 +8,7 @@ import { buildGraph } from './graph/builder.js';
 import { WsBroadcaster } from './ws.js';
 import { createWatcher } from './watcher.js';
 import { AgentTracker } from './agent/tracker.js';
+import { LiveAgentWatcher } from './agent/live-watcher.js';
 import { CONFIG } from './config.js';
 import type { GraphData } from './graph/types.js';
 
@@ -17,19 +19,17 @@ function getTarget(): string {
   const args = process.argv.slice(2);
   const idx = args.indexOf('--target');
   if (idx !== -1 && args[idx + 1]) return args[idx + 1];
-  // Also accept bare positional arg (no -- prefix)
   const positional = args.find(a => !a.startsWith('-'));
   if (positional) return positional;
   return process.env.STELLA_TARGET ?? '.';
 }
 
-const TARGET = getTarget();
-const targetDir = path.resolve(TARGET);
+let targetDir = path.resolve(getTarget());
 
-console.log(`[StellaAgent] Target: ${targetDir}`);
-console.log(`[StellaAgent] Port: ${PORT}`);
+console.log(`[StellaCode] Target: ${targetDir}`);
+console.log(`[StellaCode] Port: ${PORT}`);
 
-// Agent tracker (init early for co-change data)
+// Agent tracker
 const agentTracker = new AgentTracker(targetDir);
 
 // Parse project
@@ -38,15 +38,16 @@ function rebuildGraph() {
   const start = Date.now();
   const files = parseProject(targetDir);
 
-  // Get co-change data from git history if available
   let coChanges;
+  let fileGitMeta;
   if (agentTracker.isGit) {
     const commits = agentTracker.getGitLog(CONFIG.graphCoChangeLimit);
     coChanges = agentTracker.getCoChanges(commits);
+    fileGitMeta = agentTracker.getFileGitMeta(commits);
   }
 
-  graphData = buildGraph(files, targetDir, { coChanges });
-  console.log(`[StellaAgent] Graph built: ${graphData.stats.totalFiles} files, ${graphData.stats.totalEdges} edges (${Date.now() - start}ms)`);
+  graphData = buildGraph(files, targetDir, { coChanges, fileGitMeta });
+  console.log(`[StellaCode] Graph built: ${graphData.stats.totalFiles} files, ${graphData.stats.totalEdges} edges (${Date.now() - start}ms)`);
 }
 
 rebuildGraph();
@@ -66,7 +67,6 @@ app.get('/api/graph/node/:id', (req, res) => {
   const node = graphData.nodes.find(n => n.id === nodeId);
   if (!node) return res.status(404).json({ error: 'Node not found' });
 
-  // Find connected edges and nodes
   const connectedEdges = graphData.edges.filter(e => e.source === nodeId || e.target === nodeId);
   const connectedNodeIds = new Set(connectedEdges.flatMap(e => [e.source, e.target]));
   connectedNodeIds.delete(nodeId);
@@ -85,6 +85,45 @@ app.get('/api/agent/events', (_req, res) => {
 
 app.get('/api/agent/sessions', (_req, res) => {
   res.json(agentTracker.getSessions());
+});
+
+// ── Target API ──
+
+app.get('/api/target', (_req, res) => {
+  res.json({ target: targetDir });
+});
+
+app.post('/api/target', (req, res) => {
+  const { path: newTarget } = req.body;
+  if (!newTarget || typeof newTarget !== 'string') {
+    return res.status(400).json({ error: 'path is required' });
+  }
+
+  const resolved = path.resolve(newTarget);
+
+  try {
+    if (!fs.statSync(resolved).isDirectory()) {
+      return res.status(400).json({ error: 'Not a directory' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'Directory not found' });
+  }
+
+  // Switch target
+  targetDir = resolved;
+  console.log(`[StellaCode] Target changed: ${resolved}`);
+
+  // Restart watchers
+  activeWatcher.close();
+  activeWatcher = createWatcher(resolved, onFileChange);
+  liveWatcher.updateTarget(resolved);
+
+  // Rebuild everything
+  agentTracker.updateTarget(resolved);
+  rebuildGraph();
+  broadcaster.broadcast('graph:update', graphData);
+
+  res.json({ target: resolved, stats: graphData.stats });
 });
 
 // ── Git API ──
@@ -111,42 +150,44 @@ app.get('/api/git/co-changes', (_req, res) => {
 const server = http.createServer(app);
 const broadcaster = new WsBroadcaster(server);
 
-// File watcher with debounced rebuild
+// Live agent watcher (Claude Code JSONL real-time parsing)
+let liveWatcher = new LiveAgentWatcher(targetDir, (event) => {
+  broadcaster.broadcast('agent:live', event);
+});
+
+// File watcher
 let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
 
-const watcher = createWatcher(targetDir, (event) => {
+function onFileChange(event: { type: string; relativePath: string; filePath: string; timestamp: number }) {
   console.log(`[Watch] ${event.type}: ${event.relativePath}`);
 
-  // Track agent events
   const agentEvent = agentTracker.trackFileChange(
     event.relativePath,
     event.type === 'add' ? 'file_create' : event.type === 'unlink' ? 'file_delete' : 'file_edit'
   );
 
-  // Broadcast file change immediately
-  broadcaster.broadcast('file:change', {
-    ...event,
-    agentEvent,
-  });
+  broadcaster.broadcast('file:change', { ...event, agentEvent });
 
-  // Debounced graph rebuild
   if (rebuildTimeout) clearTimeout(rebuildTimeout);
   rebuildTimeout = setTimeout(() => {
     rebuildGraph();
     broadcaster.broadcast('graph:update', graphData);
   }, CONFIG.watcher.rebuildDelay);
-});
+}
+
+let activeWatcher = createWatcher(targetDir, onFileChange);
 
 // Start
 server.listen(PORT, () => {
-  console.log(`[StellaAgent] Server running at http://localhost:${PORT}`);
-  console.log(`[StellaAgent] WebSocket at ws://localhost:${PORT}/ws`);
-  console.log(`[StellaAgent] API: GET /api/graph, /api/stats, /api/agent/events`);
+  console.log(`[StellaCode] Server running at http://localhost:${PORT}`);
+  console.log(`[StellaCode] WebSocket at ws://localhost:${PORT}/ws`);
+  console.log(`[StellaCode] API: GET /api/graph, /api/stats, /api/target`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  watcher.close();
+  activeWatcher.close();
+  liveWatcher.close();
   broadcaster.close();
   server.close();
 });
