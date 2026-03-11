@@ -4,7 +4,7 @@ import { execSync } from 'node:child_process';
 import { CONFIG } from '../config.js';
 import type {
   AgentEvent, AgentSession,
-  GitCommit, GitBranch, GitCoChange, GitStats, ConventionalType,
+  GitCommit, GitBranch, GitCoChange, GitStats, ConventionalType, TimelineCommit,
 } from './types.js';
 
 // ── Conventional Commit parser ──
@@ -91,24 +91,25 @@ export class AgentTracker {
 
   // ── Git Log Analysis ──
 
-  /** Parse full git log into structured commits */
+  /** Parse full git log into structured commits with file status */
   getGitLog(limit = CONFIG.git.defaultLogLimit): GitCommit[] {
     if (!this.isGit) return [];
 
     const raw = git(
-      `log -n ${limit} --format="COMMIT:%H|%h|%an|%ae|%at|%s" --name-only`,
+      `log -n ${limit} --format="COMMIT:%H|%h|%an|%ae|%at|%s" --name-status`,
       this.rootDir,
     );
     if (!raw) return [];
 
     const commits: GitCommit[] = [];
-    let current: Omit<GitCommit, 'files'> | null = null;
+    let current: Omit<GitCommit, 'files' | 'fileStatuses'> | null = null;
     let files: string[] = [];
+    let fileStatuses: Array<{ status: 'A' | 'M' | 'D' | 'R'; path: string; oldPath?: string }> = [];
 
     for (const line of raw.split('\n')) {
       if (line.startsWith('COMMIT:')) {
         // Flush previous
-        if (current) commits.push({ ...current, files });
+        if (current) commits.push({ ...current, files, fileStatuses });
 
         const parts = line.slice(7).split('|');
         const [hash, shortHash, author, email, atStr, ...msgParts] = parts;
@@ -123,13 +124,44 @@ export class AgentTracker {
           isAgent, agentName,
         };
         files = [];
+        fileStatuses = [];
       } else if (line.trim() && current) {
-        files.push(line.trim());
+        // Parse --name-status format: "M\tfile.ts" or "R100\told.ts\tnew.ts"
+        const parts = line.split('\t');
+        const statusCode = parts[0].trim();
+        if (statusCode && parts.length >= 2) {
+          const status = statusCode[0] as 'A' | 'M' | 'D' | 'R';
+          if (status === 'R' && parts.length >= 3) {
+            files.push(parts[2]); // new path
+            fileStatuses.push({ status, path: parts[2], oldPath: parts[1] });
+          } else {
+            files.push(parts[1]);
+            fileStatuses.push({ status, path: parts[1] });
+          }
+        }
       }
     }
-    if (current) commits.push({ ...current, files });
+    if (current) commits.push({ ...current, files, fileStatuses });
 
     return commits;
+  }
+
+  /** Get timeline data for time travel replay (oldest first) */
+  getTimeline(limit = CONFIG.git.statsLogLimit): TimelineCommit[] {
+    const commits = this.getGitLog(limit);
+    return commits
+      .map(c => ({
+        hash: c.hash,
+        shortHash: c.shortHash,
+        timestamp: c.timestamp,
+        message: c.message,
+        author: c.author,
+        isAgent: c.isAgent,
+        agentName: c.agentName,
+        conventionalType: c.conventionalType,
+        fileStatuses: c.fileStatuses ?? c.files.map(f => ({ status: 'M' as const, path: f })),
+      }))
+      .reverse(); // oldest first
   }
 
   // ── Branch Info ──
@@ -201,9 +233,9 @@ export class AgentTracker {
 
   // ── Per-file Git Metadata ──
 
-  /** Compute per-file last modified time and commit count from git log */
-  getFileGitMeta(commits?: GitCommit[]): Map<string, { lastModified: number; commitCount: number }> {
-    const result = new Map<string, { lastModified: number; commitCount: number }>();
+  /** Compute per-file last modified time, first commit time, and commit count from git log */
+  getFileGitMeta(commits?: GitCommit[]): Map<string, { lastModified: number; firstCommit: number; commitCount: number }> {
+    const result = new Map<string, { lastModified: number; firstCommit: number; commitCount: number }>();
     if (!this.isGit) return result;
 
     const data = commits ?? this.getGitLog(CONFIG.git.statsLogLimit);
@@ -216,13 +248,59 @@ export class AgentTracker {
           if (commit.timestamp > existing.lastModified) {
             existing.lastModified = commit.timestamp;
           }
+          if (commit.timestamp < existing.firstCommit) {
+            existing.firstCommit = commit.timestamp;
+          }
         } else {
-          result.set(file, { lastModified: commit.timestamp, commitCount: 1 });
+          result.set(file, { lastModified: commit.timestamp, firstCommit: commit.timestamp, commitCount: 1 });
         }
       }
     }
 
     return result;
+  }
+
+  // ── Per-file Agent Authorship ──
+
+  /** For each file, compute which agents touched it and how much */
+  getFileAgentMeta(commits?: GitCommit[]): Map<string, { primaryAgent: string | null; agentRatio: number; lastAgent: string | null }> {
+    const result = new Map<string, { agents: Map<string, number>; total: number; lastAgent: string | null }>();
+    if (!this.isGit) return new Map();
+
+    const data = commits ?? this.getGitLog(CONFIG.git.statsLogLimit);
+
+    for (const commit of data) {
+      for (const file of commit.files) {
+        let entry = result.get(file);
+        if (!entry) {
+          entry = { agents: new Map(), total: 0, lastAgent: null };
+          result.set(file, entry);
+        }
+        entry.total++;
+        if (commit.isAgent && commit.agentName) {
+          entry.agents.set(commit.agentName, (entry.agents.get(commit.agentName) ?? 0) + 1);
+          if (!entry.lastAgent) entry.lastAgent = commit.agentName; // commits are newest-first
+        }
+      }
+    }
+
+    const output = new Map<string, { primaryAgent: string | null; agentRatio: number; lastAgent: string | null }>();
+    for (const [file, entry] of result) {
+      let primaryAgent: string | null = null;
+      let maxCount = 0;
+      let totalAgentCommits = 0;
+      for (const [agent, count] of entry.agents) {
+        totalAgentCommits += count;
+        if (count > maxCount) { maxCount = count; primaryAgent = agent; }
+      }
+      output.set(file, {
+        primaryAgent,
+        agentRatio: entry.total > 0 ? totalAgentCommits / entry.total : 0,
+        lastAgent: entry.lastAgent,
+      });
+    }
+
+    return output;
   }
 
   // ── Aggregate Stats ──

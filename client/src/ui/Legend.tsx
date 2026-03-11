@@ -41,8 +41,8 @@ export function Legend() {
   };
 
   return (
-    <div className="flex items-center gap-3 px-3 py-1.5 rounded-md text-[10px] select-none pointer-events-auto"
-      style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}` }}>
+    <div className="flex items-center flex-wrap gap-x-3 gap-y-1 px-3 py-1.5 rounded-lg text-[11px] select-none pointer-events-auto"
+      style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}`, maxWidth: 'calc(100vw - 32px)' }}>
       {LEGEND_ITEMS.map(item => {
         const isHidden = hiddenFilters.has(item.key);
         const c = getColor(item);

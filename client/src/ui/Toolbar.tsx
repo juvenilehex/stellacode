@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom';
 import { useSettingsStore, type CustomColors, type EdgeStyleKey, type NodeStyleKey } from '../store/settings-store';
 import { useGraphStore } from '../store/graph-store';
+import { useTimelineStore } from '../store/timeline-store';
 import { COLORS } from '../utils/colors';
 
 // --- Color Picker Mini (portal-based to escape overflow clipping) ---
@@ -27,9 +28,15 @@ function MiniColorPicker({ value, onChange, children }: {
   const openPopup = () => {
     if (btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
+      // Position popup well to the left of settings panel to avoid overlap
+      const popupWidth = 180;
+      // Find the settings dropdown container and position left of it
+      const settingsPanel = btnRef.current.closest('.absolute, [style*="minWidth"]');
+      const panelLeft = settingsPanel ? settingsPanel.getBoundingClientRect().left : rect.left;
+      const leftPos = panelLeft - popupWidth - 12;
       setPos({
-        x: Math.max(8, rect.right - 180),
-        y: rect.bottom + 4,
+        x: leftPos > 8 ? leftPos : Math.max(8, rect.left - popupWidth - 20),
+        y: Math.min(rect.top, window.innerHeight - 280),
       });
     }
     setOpen(true);
@@ -38,13 +45,21 @@ function MiniColorPicker({ value, onChange, children }: {
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      const target = e.target as Node;
+      const target = e.target as HTMLElement;
       if (btnRef.current?.contains(target)) return;
       if (popupRef.current?.contains(target)) return;
+      if (target.closest('[data-portal-popup]')) return;
       setOpen(false);
     }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
     document.addEventListener('pointerdown', handleClick);
-    return () => document.removeEventListener('pointerdown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('pointerdown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
   }, [open]);
 
   return (
@@ -58,14 +73,15 @@ function MiniColorPicker({ value, onChange, children }: {
       {open && createPortal(
         <div
           ref={popupRef}
+          data-portal-popup
           className="fixed z-[9999] p-2 rounded-md"
           style={{
             left: pos.x,
             top: pos.y,
-            background: 'rgba(18, 18, 24, 0.97)',
-            border: '1px solid rgba(180,180,200,0.15)',
+            background: 'rgba(14, 14, 16, 0.96)',
+            border: '1px solid rgba(255,255,255,0.07)',
             width: 180,
-            backdropFilter: 'blur(12px)',
+            /* solid panel — no blur over 3D */
           }}
         >
           <div className="grid grid-cols-5 gap-1 mb-2">
@@ -141,7 +157,10 @@ function DropdownButton({ label, children }: { label: string; children: React.Re
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as HTMLElement;
+      // Don't close if clicking inside a portal popup (color picker, etc.)
+      if (target.closest('[data-portal-popup]')) return;
+      if (ref.current && !ref.current.contains(target)) setOpen(false);
     }
     document.addEventListener('pointerdown', handleClick);
     return () => document.removeEventListener('pointerdown', handleClick);
@@ -164,9 +183,10 @@ function DropdownButton({ label, children }: { label: string; children: React.Re
         <div
           className="absolute right-0 top-8 rounded-md overflow-y-auto max-h-[80vh]"
           style={{
-            background: 'rgba(12, 12, 16, 0.95)',
-            border: '0.5px solid rgba(180,180,200,0.10)',
-            backdropFilter: 'blur(12px)',
+            background: 'rgba(14, 14, 16, 0.96)',
+            border: '1px solid rgba(255,255,255,0.07)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            /* solid panel — no blur over 3D */
             minWidth: 200,
           }}
         >
@@ -207,7 +227,7 @@ function PopupSlider({ label, value, onChange, min, max, step = 1, suffix }: {
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[9px] w-12 shrink-0" style={{ color: COLORS.textSecondary }}>{label}</span>
+      <span className="text-[10px] w-12 shrink-0" style={{ color: COLORS.textSecondary }}>{label}</span>
       <input
         type="range" min={min} max={max} step={step}
         value={value}
@@ -215,7 +235,7 @@ function PopupSlider({ label, value, onChange, min, max, step = 1, suffix }: {
         className="flex-1 h-0.5 cursor-pointer"
         style={{ accentColor: 'rgba(180,180,200,0.5)' }}
       />
-      <span className="text-[9px] w-7 text-right tabular-nums" style={{ color: COLORS.textSecondary }}>
+      <span className="text-[10px] w-7 text-right tabular-nums" style={{ color: COLORS.textSecondary }}>
         {value}{suffix}
       </span>
     </div>
@@ -300,7 +320,7 @@ function TargetDirectoryRow() {
         </span>
         {!editing && (
           <button
-            className="text-[9px] px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors"
+            className="text-[10px] px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors"
             style={{ color: COLORS.textSecondary }}
             onClick={() => setEditing(true)}
           >
@@ -325,7 +345,7 @@ function TargetDirectoryRow() {
           />
           <div className="flex gap-1">
             <button
-              className="flex-1 text-[9px] py-0.5 rounded transition-colors"
+              className="flex-1 text-[10px] py-0.5 rounded transition-colors"
               style={{
                 background: 'rgba(180,180,200,0.08)',
                 color: loading ? COLORS.textSecondary : COLORS.textPrimary,
@@ -336,7 +356,7 @@ function TargetDirectoryRow() {
               {loading ? 'Scanning...' : 'Apply'}
             </button>
             <button
-              className="text-[9px] px-2 py-0.5 rounded hover:bg-white/5 transition-colors"
+              className="text-[10px] px-2 py-0.5 rounded hover:bg-white/5 transition-colors"
               style={{ color: COLORS.textSecondary }}
               onClick={() => { setEditing(false); setError(''); setValue(currentPath); }}
               disabled={loading}
@@ -345,7 +365,7 @@ function TargetDirectoryRow() {
             </button>
           </div>
           {error && (
-            <p className="text-[9px]" style={{ color: '#FF8EC8' }}>{error}</p>
+            <p className="text-[10px]" style={{ color: '#FF8EC8' }}>{error}</p>
           )}
         </div>
       ) : (
@@ -376,7 +396,7 @@ function ObserveRow() {
       >
         {observeMode ? 'Exit Observe' : 'Observe'}
       </button>
-      <p className="mt-1 text-[9px] leading-tight" style={{ color: 'rgba(200, 180, 140, 0.4)' }}>
+      <p className="mt-1 text-[10px] leading-tight" style={{ color: 'rgba(200, 180, 140, 0.4)' }}>
         {observeMode ? 'ESC or click to return' : 'Watch the stars quietly'}
       </p>
     </div>
@@ -395,9 +415,64 @@ export function Toolbar() {
   const bloomIntensity = useSettingsStore(s => s.bloomIntensity);
   const setBloomIntensity = useSettingsStore(s => s.setBloomIntensity);
   const resetColors = useSettingsStore(s => s.resetColors);
+  const dirCohesion = useSettingsStore(s => s.dirCohesion);
+  const setDirCohesion = useSettingsStore(s => s.setDirCohesion);
+  const colorMode = useSettingsStore(s => s.colorMode);
+  const setColorMode = useSettingsStore(s => s.setColorMode);
+  const complexityGlow = useSettingsStore(s => s.complexityGlow);
+  const setComplexityGlow = useSettingsStore(s => s.setComplexityGlow);
+  const coChangePulse = useSettingsStore(s => s.coChangePulse);
+  const setCoChangePulse = useSettingsStore(s => s.setCoChangePulse);
+  const relayout = useGraphStore(s => s.relayout);
+  const timelineMode = useTimelineStore(s => s.mode);
+  const enterReplay = useTimelineStore(s => s.enterReplay);
+
+  // Debounce relayout to avoid flooding the server while dragging
+  const relayoutTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const debouncedRelayout = useCallback((v: number) => {
+    setDirCohesion(v);
+    if (relayoutTimer.current) clearTimeout(relayoutTimer.current);
+    relayoutTimer.current = setTimeout(() => relayout(v), 300);
+  }, [setDirCohesion, relayout]);
 
   return (
-    <div className="fixed top-3 right-3 z-50 flex items-center gap-2 select-none pointer-events-auto">
+    <div className="fixed top-3 right-3 z-50 flex items-center flex-wrap justify-end gap-2 select-none pointer-events-auto" style={{ maxWidth: 'calc(100vw - 260px)' }}>
+      {/* Capture screenshot */}
+      <button
+        className="px-2.5 py-1 text-[10px] tracking-wider uppercase rounded-sm transition-all duration-150"
+        style={{
+          background: 'rgba(180,180,200,0.05)',
+          border: '0.5px solid rgba(180,180,200,0.10)',
+          color: COLORS.textSecondary,
+        }}
+        onClick={() => {
+          const canvas = document.querySelector('canvas');
+          if (!canvas) return;
+          const link = document.createElement('a');
+          link.download = `stellacode-${Date.now()}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        }}
+        title="Save screenshot (PNG)"
+      >
+        Capture
+      </button>
+
+      {/* Time Travel */}
+      {timelineMode === 'live' && (
+        <button
+          className="px-2.5 py-1 text-[10px] tracking-wider uppercase rounded-sm transition-all duration-150"
+          style={{
+            background: 'rgba(137,196,244,0.06)',
+            border: '0.5px solid rgba(137,196,244,0.15)',
+            color: 'rgba(137,196,244,0.7)',
+          }}
+          onClick={enterReplay}
+        >
+          Time Travel
+        </button>
+      )}
+
       {/* UI Toggles */}
       <DropdownButton label="UI">
         <div className="py-1">
@@ -418,7 +493,7 @@ export function Toolbar() {
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>Colors</span>
               <button
-                className="text-[9px] px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors"
+                className="text-[10px] px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors"
                 style={{ color: COLORS.textSecondary }}
                 onClick={resetColors}
               >
@@ -441,6 +516,34 @@ export function Toolbar() {
             <Slider label="Font Size" value={fontSize} onChange={setFontSize} min={9} max={18} suffix="px" />
             <Slider label="Signal" value={signalIntensity} onChange={setSignalIntensity} min={1} max={100} />
             <Slider label="Bloom" value={bloomIntensity} onChange={setBloomIntensity} min={0} max={100} />
+            <Slider label="Cohesion" value={dirCohesion} onChange={debouncedRelayout} min={0} max={100} />
+          </div>
+
+          <div className="my-2 mx-3 h-px" style={{ background: 'rgba(180,180,200,0.08)' }} />
+
+          {/* Visual modes */}
+          <div className="px-3 space-y-2 pb-1">
+            {/* Color mode toggle */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] w-20 shrink-0" style={{ color: COLORS.textSecondary }}>Color Mode</span>
+              <div className="flex gap-1 flex-1">
+                {(['language', 'age', 'agent'] as const).map(m => (
+                  <button
+                    key={m}
+                    className="flex-1 text-[9px] py-0.5 rounded-sm transition-colors"
+                    style={{
+                      color: colorMode === m ? COLORS.textPrimary : COLORS.textSecondary,
+                      background: colorMode === m ? 'rgba(180,180,200,0.12)' : 'transparent',
+                    }}
+                    onClick={() => setColorMode(m)}
+                  >
+                    {m === 'language' ? 'Lang' : m === 'age' ? 'Age' : 'Agent'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Slider label="Complexity" value={complexityGlow} onChange={setComplexityGlow} min={0} max={100} suffix="%" />
+            <ToggleRow label="Co-change Pulse" active={coChangePulse} onToggle={() => setCoChangePulse(!coChangePulse)} />
           </div>
 
           <div className="my-2 mx-3 h-px" style={{ background: 'rgba(180,180,200,0.08)' }} />

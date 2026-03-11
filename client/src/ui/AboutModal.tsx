@@ -34,7 +34,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
       onClick={onClose}
     >
       <div
-        className="relative w-[480px] max-h-[80vh] overflow-y-auto rounded-lg text-xs select-none"
+        className="relative w-[480px] max-w-[calc(100vw-32px)] max-h-[80vh] overflow-y-auto rounded-lg text-xs select-none"
         style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}` }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -47,7 +47,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
             </span>
             <span className="text-[10px] px-1.5 py-0.5 rounded"
               style={{ background: 'rgba(199,164,255,0.1)', color: COLORS.directory }}>
-              v0.1.0
+              v1.0
             </span>
           </div>
           <button

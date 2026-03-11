@@ -9,11 +9,17 @@ Thumbs.db
 *.tsbuildinfo
 
 # Internal dev scripts
-inspect.mjs
-inspect2.mjs
+*.mjs
 
-# Internal dev screenshots (keep only README images)
-screenshots/EVOLUTION_ROUND_1.md
+# Screenshots -- keep only README images
+screenshots/evo/
+screenshots/uiux/
+screenshots/check-*
+screenshots/filter-*
+screenshots/final-*
+screenshots/loop-*
+screenshots/test-*
+screenshots/hero-*
 screenshots/01-*.png
 screenshots/02-*.png
 screenshots/04-*.png
@@ -21,3 +27,7 @@ screenshots/05-*.png
 screenshots/06-*.png
 screenshots/10-*.png
 screenshots/r2-*.png
+screenshots/EVOLUTION_ROUND_1.md
+
+# Client debug screenshots
+client/screenshots/

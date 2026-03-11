@@ -5,6 +5,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { parseProject } from './parser/index.js';
 import { buildGraph } from './graph/builder.js';
+import { computeLayout } from './graph/layout.js';
 import { WsBroadcaster } from './ws.js';
 import { createWatcher } from './watcher.js';
 import { AgentTracker } from './agent/tracker.js';
@@ -40,13 +41,15 @@ function rebuildGraph() {
 
   let coChanges;
   let fileGitMeta;
+  let fileAgentMeta;
   if (agentTracker.isGit) {
     const commits = agentTracker.getGitLog(CONFIG.graphCoChangeLimit);
     coChanges = agentTracker.getCoChanges(commits);
     fileGitMeta = agentTracker.getFileGitMeta(commits);
+    fileAgentMeta = agentTracker.getFileAgentMeta(commits);
   }
 
-  graphData = buildGraph(files, targetDir, { coChanges, fileGitMeta });
+  graphData = buildGraph(files, targetDir, { coChanges, fileGitMeta, fileAgentMeta });
   console.log(`[StellaCode] Graph built: ${graphData.stats.totalFiles} files, ${graphData.stats.totalEdges} edges (${Date.now() - start}ms)`);
 }
 
@@ -141,9 +144,35 @@ app.get('/api/git/branches', (_req, res) => {
   res.json(agentTracker.getBranches());
 });
 
+app.get('/api/timeline', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 500, 1000);
+  const commits = agentTracker.getTimeline(limit);
+  const currentNodes = graphData.nodes.map(n => n.id);
+  res.json({ commits, currentNodes });
+});
+
 app.get('/api/git/co-changes', (_req, res) => {
   const commits = agentTracker.getGitLog(CONFIG.git.coChangeLogLimit);
   res.json(agentTracker.getCoChanges(commits));
+});
+
+// ── Relayout API ──
+
+app.post('/api/relayout', (req, res) => {
+  const { dirCohesion } = req.body ?? {};
+  const cohesionValue = typeof dirCohesion === 'number' ? Math.max(0, Math.min(100, dirCohesion)) : 50;
+
+  // Map 0-100 slider to multiplier: 0→0.1x, 50→1.0x, 100→3.0x
+  const multiplier = cohesionValue <= 50
+    ? 0.1 + (cohesionValue / 50) * 0.9    // 0→0.1, 50→1.0
+    : 1.0 + ((cohesionValue - 50) / 50) * 2.0; // 50→1.0, 100→3.0
+
+  // Re-run layout on existing nodes/edges with new cohesion
+  computeLayout(graphData.nodes, graphData.edges, { dirCohesion: multiplier });
+  graphData.timestamp = Date.now();
+
+  broadcaster.broadcast('graph:update', graphData);
+  res.json({ dirCohesion: cohesionValue, multiplier });
 });
 
 // HTTP server

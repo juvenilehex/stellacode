@@ -5,13 +5,17 @@ import type { GraphNode, GraphEdge } from './types.js';
  * Adapted from STELLA web_dashboard.py force simulation.
  */
 
-const PHI = (1 + Math.sqrt(5)) / 2; // Golden ratio
 const REPULSION = 4.0;
 const ATTRACTION = 0.08;
 const DAMPING = 0.85;
 const IDEAL_DIST_BASE = 2;
 const IDEAL_DIST_RANGE = 8;
-const CENTERING_FORCE = 0.01; // Pull disconnected clusters toward origin
+const CENTERING_FORCE = 0.01;
+
+/** Barnes-Hut threshold: use approximation when s/d < THETA */
+const BH_THETA = 0.8;
+/** Node count threshold to switch to Barnes-Hut */
+const BH_THRESHOLD = 200;
 
 interface Vec3 {
   x: number;
@@ -19,7 +23,106 @@ interface Vec3 {
   z: number;
 }
 
-export function computeLayout(nodes: GraphNode[], edges: GraphEdge[]): void {
+// ── Barnes-Hut Octree ──
+
+interface OctreeNode {
+  cx: number; cy: number; cz: number; // center of mass
+  mass: number;
+  size: number; // half-width of this cell
+  children: (OctreeNode | null)[];
+  nodeIndex: number; // -1 if internal node, index if leaf
+}
+
+function createOctreeNode(ox: number, oy: number, oz: number, size: number): OctreeNode {
+  return { cx: 0, cy: 0, cz: 0, mass: 0, size, children: [], nodeIndex: -1 };
+}
+
+function insertIntoOctree(root: OctreeNode, nodes: GraphNode[], idx: number, ox: number, oy: number, oz: number, halfSize: number): void {
+  const node = nodes[idx];
+  if (root.mass === 0 && root.nodeIndex === -1 && root.children.length === 0) {
+    // Empty leaf — place node here
+    root.cx = node.x;
+    root.cy = node.y;
+    root.cz = node.z;
+    root.mass = 1;
+    root.nodeIndex = idx;
+    return;
+  }
+
+  if (root.nodeIndex !== -1) {
+    // Leaf with existing node — subdivide
+    const existingIdx = root.nodeIndex;
+    root.nodeIndex = -1;
+    root.children = new Array(8).fill(null);
+    insertIntoOctreeChild(root, nodes, existingIdx, ox, oy, oz, halfSize);
+  }
+
+  if (root.children.length === 0) {
+    root.children = new Array(8).fill(null);
+  }
+
+  insertIntoOctreeChild(root, nodes, idx, ox, oy, oz, halfSize);
+
+  // Update center of mass
+  const totalMass = root.mass + 1;
+  root.cx = (root.cx * root.mass + node.x) / totalMass;
+  root.cy = (root.cy * root.mass + node.y) / totalMass;
+  root.cz = (root.cz * root.mass + node.z) / totalMass;
+  root.mass = totalMass;
+}
+
+function insertIntoOctreeChild(root: OctreeNode, nodes: GraphNode[], idx: number, ox: number, oy: number, oz: number, halfSize: number): void {
+  const node = nodes[idx];
+  const qh = halfSize / 2;
+  const octant = (node.x > ox ? 1 : 0) | (node.y > oy ? 2 : 0) | (node.z > oz ? 4 : 0);
+  const cox = ox + (octant & 1 ? qh : -qh);
+  const coy = oy + (octant & 2 ? qh : -qh);
+  const coz = oz + (octant & 4 ? qh : -qh);
+
+  if (!root.children[octant]) {
+    root.children[octant] = createOctreeNode(cox, coy, coz, qh);
+  }
+  insertIntoOctree(root.children[octant]!, nodes, idx, cox, coy, coz, qh);
+}
+
+function computeBHForce(
+  tree: OctreeNode, nodeIdx: number, nodes: GraphNode[], velocities: Vec3[], alpha: number,
+): void {
+  if (tree.mass === 0) return;
+
+  const node = nodes[nodeIdx];
+  const dx = tree.cx - node.x;
+  const dy = tree.cy - node.y;
+  const dz = tree.cz - node.z;
+  const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.01;
+
+  // If leaf with same node, skip
+  if (tree.nodeIndex === nodeIdx) return;
+
+  // Barnes-Hut criterion: if cell is far enough, treat as single body
+  if (tree.nodeIndex !== -1 || (tree.size * 2 / dist) < BH_THETA) {
+    const force = REPULSION * tree.mass / (dist * dist) * alpha;
+    const fx = (dx / dist) * force;
+    const fy = (dy / dist) * force;
+    const fz = (dz / dist) * force;
+    velocities[nodeIdx].x -= fx;
+    velocities[nodeIdx].y -= fy;
+    velocities[nodeIdx].z -= fz;
+    return;
+  }
+
+  // Recurse into children
+  for (const child of tree.children) {
+    if (child) computeBHForce(child, nodeIdx, nodes, velocities, alpha);
+  }
+}
+
+export interface LayoutOptions {
+  /** Directory edge strength multiplier (0-1). Default 1.0 = use edge.strength as-is. */
+  dirCohesion?: number;
+}
+
+export function computeLayout(nodes: GraphNode[], edges: GraphEdge[], options?: LayoutOptions): void {
   if (nodes.length === 0) return;
 
   // Initialize positions using golden ratio spiral on sphere
@@ -57,7 +160,7 @@ export function computeLayout(nodes: GraphNode[], edges: GraphEdge[]): void {
     adjacency.get(ti)!.set(si, Math.max(adjacency.get(ti)!.get(si) ?? 0, edge.strength));
   }
 
-  // Scale iterations for large graphs (O(n^2) repulsion)
+  const useBH = n > BH_THRESHOLD;
   const iterations = n > 500 ? 40 : 80;
 
   // Force simulation
@@ -71,28 +174,55 @@ export function computeLayout(nodes: GraphNode[], edges: GraphEdge[]): void {
       velocities[i].z -= nodes[i].z * CENTERING_FORCE * alpha;
     }
 
-    // Repulsion between all nodes (O(n^2), acceptable for <2000 nodes)
-    for (let a = 0; a < n; a++) {
-      for (let b = a + 1; b < n; b++) {
-        const dx = nodes[a].x - nodes[b].x;
-        const dy = nodes[a].y - nodes[b].y;
-        const dz = nodes[a].z - nodes[b].z;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.01;
-        const force = REPULSION / (dist * dist) * alpha;
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-        const fz = (dz / dist) * force;
+    if (useBH) {
+      // Barnes-Hut O(n log n) repulsion
+      // Compute bounding box
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+      for (let i = 0; i < n; i++) {
+        if (nodes[i].x < minX) minX = nodes[i].x;
+        if (nodes[i].x > maxX) maxX = nodes[i].x;
+        if (nodes[i].y < minY) minY = nodes[i].y;
+        if (nodes[i].y > maxY) maxY = nodes[i].y;
+        if (nodes[i].z < minZ) minZ = nodes[i].z;
+        if (nodes[i].z > maxZ) maxZ = nodes[i].z;
+      }
+      const halfSize = Math.max(maxX - minX, maxY - minY, maxZ - minZ) / 2 + 1;
+      const ox = (minX + maxX) / 2;
+      const oy = (minY + maxY) / 2;
+      const oz = (minZ + maxZ) / 2;
 
-        velocities[a].x += fx;
-        velocities[a].y += fy;
-        velocities[a].z += fz;
-        velocities[b].x -= fx;
-        velocities[b].y -= fy;
-        velocities[b].z -= fz;
+      const tree = createOctreeNode(ox, oy, oz, halfSize);
+      for (let i = 0; i < n; i++) {
+        insertIntoOctree(tree, nodes, i, ox, oy, oz, halfSize);
+      }
+      for (let i = 0; i < n; i++) {
+        computeBHForce(tree, i, nodes, velocities, alpha);
+      }
+    } else {
+      // Brute-force O(n^2) repulsion (fine for small graphs)
+      for (let a = 0; a < n; a++) {
+        for (let b = a + 1; b < n; b++) {
+          const dx = nodes[a].x - nodes[b].x;
+          const dy = nodes[a].y - nodes[b].y;
+          const dz = nodes[a].z - nodes[b].z;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.01;
+          const force = REPULSION / (dist * dist) * alpha;
+          const fx = (dx / dist) * force;
+          const fy = (dy / dist) * force;
+          const fz = (dz / dist) * force;
+
+          velocities[a].x += fx;
+          velocities[a].y += fy;
+          velocities[a].z += fz;
+          velocities[b].x -= fx;
+          velocities[b].y -= fy;
+          velocities[b].z -= fz;
+        }
       }
     }
 
     // Attraction along edges
+    const dirMul = options?.dirCohesion ?? 1.0;
     for (const edge of edges) {
       const ai = nodeIndex.get(edge.source);
       const bi = nodeIndex.get(edge.target);
@@ -103,8 +233,10 @@ export function computeLayout(nodes: GraphNode[], edges: GraphEdge[]): void {
       const dz = nodes[bi].z - nodes[ai].z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz) + 0.01;
 
-      const idealDist = IDEAL_DIST_BASE + IDEAL_DIST_RANGE * (1 - edge.strength);
-      const attract = (dist - idealDist) * edge.strength * ATTRACTION * alpha;
+      // Apply directory cohesion multiplier to containment edges
+      const strength = edge.type === 'directory' ? edge.strength * dirMul : edge.strength;
+      const idealDist = IDEAL_DIST_BASE + IDEAL_DIST_RANGE * (1 - strength);
+      const attract = (dist - idealDist) * strength * ATTRACTION * alpha;
 
       const fx = (dx / dist) * attract;
       const fy = (dy / dist) * attract;

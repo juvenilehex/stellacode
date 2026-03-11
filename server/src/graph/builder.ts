@@ -2,11 +2,13 @@ import path from 'node:path';
 import type { ParsedFile } from '../parser/types.js';
 import type { GraphNode, GraphEdge, GraphData } from './types.js';
 import type { GitCoChange } from '../agent/types.js';
-import { computeLayout } from './layout.js';
+import { computeLayout, type LayoutOptions } from './layout.js';
 
 export interface BuildGraphOptions {
   coChanges?: GitCoChange[];
-  fileGitMeta?: Map<string, { lastModified: number; commitCount: number }>;
+  fileGitMeta?: Map<string, { lastModified: number; firstCommit: number; commitCount: number }>;
+  fileAgentMeta?: Map<string, { primaryAgent: string | null; agentRatio: number; lastAgent: string | null }>;
+  layout?: LayoutOptions;
 }
 
 export function buildGraph(files: ParsedFile[], rootDir: string, options?: BuildGraphOptions): GraphData {
@@ -65,6 +67,7 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
         symbols: file.symbols,
         imports: file.imports,
         ...(options?.fileGitMeta?.get(file.relativePath) ?? {}),
+        ...(options?.fileAgentMeta?.get(file.relativePath) ?? {}),
       },
     };
     nodes.push(node);
@@ -82,14 +85,17 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
     }
   }
 
-  // Build import edges
+  // Build import edges (deduplicate: same file may import same target multiple times)
   const relPathSet = new Set(files.map(f => f.relativePath));
+  const seenEdgeIds = new Set<string>();
 
   for (const file of files) {
     for (const imp of file.imports) {
       const resolved = resolveImport(file.relativePath, imp.source, relPathSet);
       if (resolved) {
         const edgeId = `import:${file.relativePath}->${resolved}`;
+        if (seenEdgeIds.has(edgeId)) continue;
+        seenEdgeIds.add(edgeId);
         edges.push({
           id: edgeId,
           source: `file:${file.relativePath}`,
@@ -130,8 +136,42 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
     }
   }
 
+  // ── Circular dependency detection ──
+  const circularEdgeIds = detectCircularDeps(edges);
+  for (const edge of edges) {
+    if (circularEdgeIds.has(edge.id)) {
+      if (!edge.label) edge.label = '';
+      edge.label = (edge.label ? edge.label + ' | ' : '') + 'circular';
+    }
+  }
+
+  // ── Dead code detection (exported symbols no one imports) ──
+  const importedSpecifiers = new Set<string>();
+  for (const file of files) {
+    for (const imp of file.imports) {
+      for (const spec of imp.specifiers) {
+        importedSpecifiers.add(spec);
+      }
+    }
+  }
+  for (const file of files) {
+    const node = fileMap.get(file.relativePath);
+    if (!node) continue;
+    const exportedSymbols = file.symbols.filter(s => s.exported);
+    const unusedExports = exportedSymbols.filter(s => !importedSpecifiers.has(s.name));
+    if (exportedSymbols.length > 0 && unusedExports.length === exportedSymbols.length) {
+      // All exports are unused — potential dead code
+      if (node.meta) node.meta.deadExports = true;
+    }
+    // Files with zero imports pointing to them and zero exports
+    const hasIncomingImport = edges.some(e => e.target === node.id && e.type === 'import');
+    if (!hasIncomingImport && exportedSymbols.length === 0 && file.symbols.length > 0) {
+      if (node.meta) node.meta.islandFile = true;
+    }
+  }
+
   // Run force layout
-  computeLayout(nodes, edges);
+  computeLayout(nodes, edges, options?.layout);
 
   return {
     nodes,
@@ -146,6 +186,48 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
       languages,
     },
   };
+}
+
+/** Detect circular dependencies using DFS cycle detection on import edges */
+function detectCircularDeps(edges: GraphEdge[]): Set<string> {
+  const importEdges = edges.filter(e => e.type === 'import');
+  const adj = new Map<string, Array<{ target: string; edgeId: string }>>();
+
+  for (const edge of importEdges) {
+    if (!adj.has(edge.source)) adj.set(edge.source, []);
+    adj.get(edge.source)!.push({ target: edge.target, edgeId: edge.id });
+  }
+
+  const cycleEdgeIds = new Set<string>();
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+  const stackEdges = new Map<string, string>(); // node -> edge that led to it
+
+  function dfs(node: string) {
+    visited.add(node);
+    inStack.add(node);
+
+    for (const { target, edgeId } of adj.get(node) ?? []) {
+      if (inStack.has(target)) {
+        // Found cycle — mark the edge that closes it
+        cycleEdgeIds.add(edgeId);
+        // Also mark the edge that points from target (if in stack)
+        const backEdge = stackEdges.get(target);
+        if (backEdge) cycleEdgeIds.add(backEdge);
+      } else if (!visited.has(target)) {
+        stackEdges.set(target, edgeId);
+        dfs(target);
+      }
+    }
+
+    inStack.delete(node);
+  }
+
+  for (const node of adj.keys()) {
+    if (!visited.has(node)) dfs(node);
+  }
+
+  return cycleEdgeIds;
 }
 
 function resolveImport(fromFile: string, importSource: string, knownFiles: Set<string>): string | undefined {

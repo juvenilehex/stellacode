@@ -35,7 +35,7 @@ Not every request will be implemented, but every one will be read.
 If you want to try it out and report back:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/stellacode.git
+git clone https://github.com/ppark-jjong/stellacode.git
 cd stellacode
 npm install
 npm run dev

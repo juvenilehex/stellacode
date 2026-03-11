@@ -84,15 +84,15 @@ export function DraggablePanel({
         ...(size ? { width: size.w, height: size.h } : {}),
       }}
     >
-      {/* Drag handle — separate layer on top, does NOT interfere with children */}
+      {/* Drag handle — small centered bar, does not block panel content */}
       <div
-        className="absolute top-0 inset-x-0 h-5 z-10 opacity-0 hover:opacity-100 transition-opacity"
+        className="absolute top-0 left-1/2 -translate-x-1/2 z-10 w-10 h-3 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
         style={{ cursor: 'grab' }}
         onPointerDown={onDragStart}
         onPointerMove={onDragMove}
         onPointerUp={onDragEnd}
       >
-        <div className="w-full h-[3px] rounded-t" style={{ background: 'rgba(180, 180, 200, 0.25)' }} />
+        <div className="w-8 h-[2px] rounded" style={{ background: 'rgba(180, 180, 200, 0.3)' }} />
       </div>
 
       {children}

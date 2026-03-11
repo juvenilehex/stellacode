@@ -4,9 +4,9 @@ import { useGraphStore } from '../store/graph-store';
 import type { LODLevel } from '../store/graph-store';
 
 const THRESHOLDS = {
-  project: 40,    // Camera > 40 units: directory clusters only
-  directory: 15,  // Camera 15-40: show files
-  file: 5,        // Camera < 15: full detail
+  project: 120,   // Camera > 120 units: directory clusters only
+  directory: 40,  // Camera 40-120: show files
+  file: 12,       // Camera < 12: full detail
 };
 
 export function LODController() {

@@ -20,6 +20,12 @@ interface GraphState {
   hiddenFilters: Set<FilterKey>;
   /** Current target directory path */
   targetPath: string;
+  /** Entry animation progress 0-1 */
+  entryProgress: number;
+  /** Whether entry animation is active */
+  entryActive: boolean;
+  /** Timeline replay: only show nodes in this set. null = show all (live mode). */
+  timelineVisibleIds: Set<string> | null;
 
   setData: (data: GraphData) => void;
   setLoading: (loading: boolean) => void;
@@ -31,8 +37,12 @@ interface GraphState {
   setTargetPath: (path: string) => void;
   /** Re-target to a new directory, returns error string or null */
   retarget: (path: string) => Promise<string | null>;
+  /** Re-layout with new dirCohesion (0-100) */
+  relayout: (dirCohesion: number) => Promise<void>;
   getNode: (nodeId: string) => GraphNode | undefined;
   getConnectedEdges: (nodeId: string) => GraphEdge[];
+  tickEntry: (delta: number) => void;
+  setTimelineVisibleIds: (ids: Set<string> | null) => void;
 }
 
 export const useGraphStore = create<GraphState>((set, get) => ({
@@ -47,13 +57,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   graphVersion: 0,
   hiddenFilters: new Set<FilterKey>(),
   targetPath: '',
+  entryProgress: 0,
+  entryActive: false,
+  timelineVisibleIds: null,
 
   setData: (data) => {
     const nodeMap = new Map<string, GraphNode>();
     for (const node of data.nodes) {
       nodeMap.set(node.id, node);
     }
-    set(s => ({ data, nodeMap, loading: false, error: null, graphVersion: s.graphVersion + 1 }));
+    set(s => ({ data, nodeMap, loading: false, error: null, graphVersion: s.graphVersion + 1, entryProgress: 0, entryActive: true }));
   },
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error, loading: false }),
@@ -118,6 +131,20 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     }
   },
 
+  relayout: async (dirCohesion) => {
+    try {
+      const res = await fetch('/api/relayout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dirCohesion }),
+      });
+      if (!res.ok) return;
+      // Graph update will come via WebSocket broadcast
+    } catch {
+      // Silent fail — layout will stay as-is
+    }
+  },
+
   getNode: (nodeId) => {
     return get().nodeMap.get(nodeId);
   },
@@ -127,4 +154,18 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     if (!data) return [];
     return data.edges.filter(e => e.source === nodeId || e.target === nodeId);
   },
+
+  tickEntry: (delta) => {
+    const { entryActive, entryProgress } = get();
+    if (!entryActive) return;
+    const next = Math.min(entryProgress + delta * 0.4, 1); // ~2.5s total
+    set({ entryProgress: next, entryActive: next < 1 });
+  },
+
+  setTimelineVisibleIds: (ids) => set({ timelineVisibleIds: ids }),
 }));
+
+// Expose store to window for testing (Playwright stress tests)
+if (typeof window !== 'undefined') {
+  (window as any).__ZUSTAND_GRAPH_STORE = useGraphStore;
+}

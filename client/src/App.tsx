@@ -9,12 +9,14 @@ import { HoverTooltip } from './ui/HoverTooltip';
 import { GitPanel } from './ui/GitPanel';
 import { Breadcrumb } from './ui/Breadcrumb';
 import { Toolbar } from './ui/Toolbar';
+import { TimelineSlider } from './ui/TimelineSlider';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { DraggablePanel } from './ui/DraggablePanel';
 import { useGraphData } from './hooks/useGraphData';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useGraphStore } from './store/graph-store';
 import { useSettingsStore } from './store/settings-store';
+import { useTimelineStore } from './store/timeline-store';
 
 export default function App() {
   const [connected, setConnected] = useState(false);
@@ -33,16 +35,50 @@ function Observatory() {
   const observeMode = useSettingsStore(s => s.observeMode);
   const setObserveMode = useSettingsStore(s => s.setObserveMode);
 
-  // ESC to deselect or exit observe mode
+  // Global keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // Skip if typing in an input/textarea
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') {
+        if (e.key === 'Escape') (e.target as HTMLElement).blur();
+        return;
+      }
+
       if (e.key === 'Escape') {
+        // Timeline handles its own Escape
+        if (useTimelineStore.getState().mode === 'replay') return;
         if (useSettingsStore.getState().observeMode) {
           useSettingsStore.getState().setObserveMode(false);
         } else {
           useGraphStore.getState().selectNode(null);
         }
       }
+
+      // Ctrl/Cmd+F: focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        const searchInput = document.querySelector<HTMLInputElement>('input[placeholder="Search files..."]');
+        if (searchInput) searchInput.focus();
+      }
+
+      // Skip single-key shortcuts during timeline replay (has its own keybinds)
+      if (useTimelineStore.getState().mode === 'replay') return;
+
+      // O: toggle observe mode
+      if (e.key === 'o' && !e.ctrlKey && !e.metaKey) {
+        useSettingsStore.getState().setObserveMode(!useSettingsStore.getState().observeMode);
+      }
+
+      // L: cycle label mode
+      if (e.key === 'l' && !e.ctrlKey && !e.metaKey) {
+        useSettingsStore.getState().cycleLabelMode();
+      }
+
+      // 1/2/3: color mode
+      if (e.key === '1') useSettingsStore.getState().setColorMode('language');
+      if (e.key === '2') useSettingsStore.getState().setColorMode('age');
+      if (e.key === '3') useSettingsStore.getState().setColorMode('agent');
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -106,7 +142,7 @@ function Observatory() {
 
         <DraggablePanel
           visible={panels.gitPanel}
-          defaultStyle={{ bottom: 16, left: '50%', marginLeft: -192 }}
+          defaultStyle={{ bottom: 52, left: '50%', marginLeft: -192 }}
         >
           <GitPanel />
         </DraggablePanel>
@@ -123,6 +159,9 @@ function Observatory() {
 
         <HoverTooltip />
       </div>
+
+      {/* Timeline scrub bar (visible in replay mode) */}
+      <TimelineSlider />
 
       {/* Observe mode: gentle hint overlay */}
       {observeMode && <ObserveOverlay />}

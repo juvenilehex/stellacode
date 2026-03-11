@@ -45,6 +45,21 @@ export interface GitCommit {
   isAgent: boolean;
   /** Detected agent name */
   agentName?: string;
+  /** File status from --name-status (A=add, D=delete, M=modify, R=rename) */
+  fileStatuses?: Array<{ status: 'A' | 'M' | 'D' | 'R'; path: string; oldPath?: string }>;
+}
+
+/** Lightweight timeline commit for time travel replay */
+export interface TimelineCommit {
+  hash: string;
+  shortHash: string;
+  timestamp: number;
+  message: string;
+  author: string;
+  isAgent: boolean;
+  agentName?: string;
+  conventionalType: ConventionalType;
+  fileStatuses: Array<{ status: 'A' | 'M' | 'D' | 'R'; path: string; oldPath?: string }>;
 }
 
 export interface GitBranch {

@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
@@ -13,6 +13,7 @@ import { AgentTrail } from './AgentTrail';
 import { LODController } from './LODController';
 import { COLORS } from '../utils/colors';
 import { useSettingsStore } from '../store/settings-store';
+import { useTimelineStore } from '../store/timeline-store';
 
 /** Above this threshold, switch to instanced rendering */
 const INSTANCE_THRESHOLD = 100;
@@ -35,11 +36,13 @@ function SceneContent() {
       <Starfield />
 
       {/* Ambient: neutral dark base */}
-      <ambientLight intensity={0.15} color="#1a1a20" />
-      {/* Key light: warm white from above */}
-      <pointLight position={[10, 15, 10]} intensity={0.25} color="#D8D0E0" distance={80} decay={2} />
-      {/* Fill light: cool gray from below-left */}
-      <pointLight position={[-12, -8, 5]} intensity={0.1} color="#9098A8" distance={60} decay={2} />
+      <ambientLight intensity={0.18} color="#1a1a2a" />
+      {/* Key light: warm white from above-right */}
+      <pointLight position={[12, 18, 12]} intensity={0.30} color="#E8E0D8" distance={100} decay={2} />
+      {/* Fill light: cool tint from below-left for depth */}
+      <pointLight position={[-15, -10, 8]} intensity={0.12} color="#8898B8" distance={70} decay={2} />
+      {/* Rim light: subtle purple accent from behind */}
+      <pointLight position={[0, 5, -20]} intensity={0.08} color="#B098D0" distance={60} decay={2} />
 
       {useInstanced ? (
         <>
@@ -59,6 +62,12 @@ function SceneContent() {
         </>
       )}
 
+      {/* Entry animation driver */}
+      <EntryAnimator />
+
+      {/* Timeline replay driver */}
+      <TimelineAnimator />
+
       {/* Agent trails */}
       <AgentTrail />
 
@@ -66,9 +75,29 @@ function SceneContent() {
       <LODController />
 
       {/* Controls */}
-      <CameraControls maxDist={useInstanced ? 200 : 60} />
+      <CameraControls maxDist={useInstanced ? 400 : 150} />
     </>
   );
+}
+
+/** Drives entry animation progress each frame */
+function EntryAnimator() {
+  const tickEntry = useGraphStore(s => s.tickEntry);
+  const entryActive = useGraphStore(s => s.entryActive);
+  useFrame((_, delta) => {
+    if (entryActive) tickEntry(delta);
+  });
+  return null;
+}
+
+/** Drives timeline replay playback each frame */
+function TimelineAnimator() {
+  const tickPlayback = useTimelineStore(s => s.tickPlayback);
+  const playing = useTimelineStore(s => s.playing);
+  useFrame((_, delta) => {
+    if (playing) tickPlayback(delta);
+  });
+  return null;
 }
 
 function CameraControls({ maxDist }: { maxDist: number }) {
@@ -91,7 +120,7 @@ function BloomEffect() {
   const bloomIntensity = useSettingsStore(s => s.bloomIntensity);
   const observeMode = useSettingsStore(s => s.observeMode);
   const base = (bloomIntensity / 100) * 1.2;
-  const intensity = observeMode ? Math.max(base, 0.8) : base;
+  const intensity = observeMode ? Math.max(base, 0.9) : base;
   return (
     <EffectComposer>
       <Bloom
@@ -104,8 +133,71 @@ function BloomEffect() {
   );
 }
 
+/** FPS counter — only visible when ?fps=1 in URL or window.__SHOW_FPS is set */
+function FPSMonitor() {
+  const frames = useRef(0);
+  const lastTime = useRef(performance.now());
+  const [fps, setFps] = useState(0);
+
+  useFrame(() => {
+    frames.current++;
+    const now = performance.now();
+    if (now - lastTime.current >= 1000) {
+      setFps(frames.current);
+      frames.current = 0;
+      lastTime.current = now;
+    }
+    // Expose FPS to window for Playwright tests
+    (window as any).__STELLA_FPS = fps;
+  });
+
+  return (
+    <group>
+      {/* FPS rendered as HTML overlay via CSS */}
+      <></>
+    </group>
+  );
+}
+
+/** HTML overlay for FPS display */
+function FPSOverlay() {
+  const [fps, setFps] = useState(0);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    // Check if FPS display requested
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fps') === '1' || (window as any).__SHOW_FPS) {
+      setShow(true);
+    }
+
+    const iv = setInterval(() => {
+      const f = (window as any).__STELLA_FPS;
+      if (typeof f === 'number') setFps(f);
+      // Re-check show flag
+      if ((window as any).__SHOW_FPS && !show) setShow(true);
+    }, 500);
+    return () => clearInterval(iv);
+  }, []);
+
+  if (!show) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', top: 8, right: 8, zIndex: 9999,
+      background: 'rgba(0,0,0,0.6)', color: fps >= 50 ? '#7EDCCC' : fps >= 30 ? '#FFD866' : '#FF6B6B',
+      padding: '4px 10px', borderRadius: 4, fontFamily: 'monospace', fontSize: 13,
+      pointerEvents: 'none',
+    }}>
+      {fps} FPS
+    </div>
+  );
+}
+
 export function Scene() {
   return (
+    <>
+    <FPSOverlay />
     <Canvas
       camera={{ position: [14, 8, 20], fov: 45, near: 0.1, far: 600 }}
       gl={{
@@ -113,13 +205,16 @@ export function Scene() {
         powerPreference: 'high-performance',
         toneMapping: THREE.ACESFilmicToneMapping,
         toneMappingExposure: 1.0,
+        preserveDrawingBuffer: true,
       }}
-      style={{ background: COLORS.bg }}
+      style={{ background: `radial-gradient(ellipse at 50% 50%, #14121c 0%, #0f0d16 30%, #0b0a10 60%, ${COLORS.bg} 90%)` }}
       onPointerMissed={() => useGraphStore.getState().selectNode(null)}
     >
-      <fog attach="fog" args={[COLORS.bgFog, 80, 300]} />
+      <fog attach="fog" args={[COLORS.bgFog, 250, 550]} />
       <SceneContent />
       <BloomEffect />
+      <FPSMonitor />
     </Canvas>
+    </>
   );
 }

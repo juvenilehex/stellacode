@@ -2,7 +2,7 @@
 
 **Code Observatory** -- observe your codebase as a living constellation.
 
-![StellaCode](screenshots/stellacode-start.png)
+![StellaCode constellation view](screenshots/03-constellation-view.png)
 
 ## Why
 
@@ -19,7 +19,7 @@ If you've been staring at strings of text in a dark room for hours, maybe watchi
 ## Quick Start
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/stellacode.git
+git clone https://github.com/ppark-jjong/stellacode.git
 cd stellacode
 npm install
 npm run dev
@@ -44,8 +44,6 @@ Three commands. That's it.
 | **Pulse** | A file changing right now. |
 | **Diamond** | A directory. The structure that holds stars together. |
 
-![StellaCode constellation view](screenshots/03-constellation-view.png)
-
 ## Features
 
 ### Code Structure
@@ -66,22 +64,56 @@ Three commands. That's it.
 - Agent trails show which areas each AI has touched
 - See the boundary between human and machine work
 
+### Visual Experience
+- **Entry animation** -- stars bloom into existence when the constellation loads
+- **Complexity glow** -- complex files burn brighter
+- **Co-change pulse** -- coupled files breathe together
+- **Code age coloring** -- old stars glow red, new stars glow blue
+- **Agent color mode** -- see which AI touched which file
+- **Nebula clouds, shooting stars, 4-layer starfield** -- deep space atmosphere
+- **3-point cinematic lighting** -- warm key, cool fill, purple rim
+
+### Time Travel
+- **Commit replay** -- watch your constellation grow commit by commit
+- **Timeline slider** -- scrub through your project's history
+- **Playback controls** -- play, pause, rewind
+
 ### Observe Mode
-Press OBSERVE to hide all UI and watch the stars quietly. Just your code, breathing in the dark.
+Press `O` to hide all UI and watch the stars quietly. Just your code, breathing in the dark.
+
+### Capture
+Press `3` to save a PNG screenshot of your constellation.
 
 ![StellaCode inspecting a file](screenshots/stellacode-detail.png)
 *Click any star to see its symbols, connections, and place in the constellation.*
+
+## Controls
+
+| Action | Input |
+|--------|-------|
+| Rotate | Click + drag |
+| Zoom | Scroll wheel |
+| Focus a star | Click it |
+| Star info | Hover |
+| Deselect | Click empty space |
+| Search | `Ctrl+F` or search bar |
+| Observe mode | `O` |
+| Label mode cycle | `L` |
+| Color mode: default | `1` |
+| Color mode: age | `2` |
+| Color mode: agent | `3` |
+| Screenshot | `3` |
 
 ## Architecture
 
 ```
 Browser (React + R3F)            Server (Express)
-├── Three.js 3D scene            ├── Directory scanner
-├── Zustand stores               ├── Code parser (TS/JS/Python)
-├── UI panels                    ├── Graph builder + force layout
-└── WebSocket client             ├── WebSocket broadcaster
-                                 ├── File watcher (chokidar)
-                                 └── Agent tracker (git + .claude/)
+  Three.js 3D scene                Directory scanner
+  Zustand stores                   Code parser (TS/JS/Python)
+  UI panels                        Graph builder + force layout
+  WebSocket client                 WebSocket broadcaster
+                                   File watcher (chokidar)
+                                   Agent tracker (git + .claude/)
 ```
 
 ```
@@ -115,19 +147,7 @@ Data flow:
 | `GET /api/agent/sessions` | Active agent sessions |
 | `POST /api/target` | Change target directory |
 
-WebSocket at `ws://localhost:3001/ws` pushes `graph:update` and `file:change` events.
-
-## Controls
-
-| Action | Input |
-|--------|-------|
-| Rotate | Click + drag |
-| Zoom | Scroll wheel |
-| Focus a star | Click it |
-| Star info | Hover |
-| Reset view | ESC |
-| Search | Type in search bar |
-| Observe mode | OBSERVE button in settings |
+WebSocket at `ws://localhost:3333/ws` pushes `graph:update` and `file:change` events.
 
 ## Development
 
@@ -142,15 +162,6 @@ npm test          # Run server tests
 # Dogfooding -- observe StellaCode with StellaCode
 STELLA_TARGET=./ npm run dev
 ```
-
-## Roadmap
-
-StellaCode is at **v0.2**. The foundation works. Here's where it's going:
-
-- **v0.3** -- Deep analysis: complexity heatmap, circular dependency detection, dead code detection
-- **v0.4** -- Multi-agent observatory: real-time agent detection, agent territory map, human vs AI diff
-- **v0.5** -- Time travel: project evolution timeline, code age visualization, commit replay
-- **v1.0** -- Full observatory: dashboard, plugin system, CI/CD integration
 
 ## Feedback
 
