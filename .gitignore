@@ -11,23 +11,11 @@ Thumbs.db
 # Internal dev scripts
 *.mjs
 
-# Screenshots -- keep only README images
-screenshots/evo/
-screenshots/uiux/
-screenshots/check-*
-screenshots/filter-*
-screenshots/final-*
-screenshots/loop-*
-screenshots/test-*
-screenshots/hero-*
-screenshots/01-*.png
-screenshots/02-*.png
-screenshots/04-*.png
-screenshots/05-*.png
-screenshots/06-*.png
-screenshots/10-*.png
-screenshots/r2-*.png
-screenshots/EVOLUTION_ROUND_1.md
+# Screenshots -- block everything, then whitelist README images
+screenshots/*
+!screenshots/03-constellation-view.png
+!screenshots/stellacode-detail.png
+!screenshots/stellacode-start.png
 
 # Client debug screenshots
 client/screenshots/
