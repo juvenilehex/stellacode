@@ -56,8 +56,19 @@ function detectAgent(author: string, message: string): { isAgent: boolean; agent
 // ── Git command helpers ──
 
 function git(cmd: string, cwd: string): string {
+  // Reject shell metacharacters to prevent command injection
+  if (/[;&|`$(){}]/.test(cmd)) {
+    console.error('[Git] Rejected command with shell metacharacters:', cmd);
+    return '';
+  }
   try {
-    return execSync(`git ${cmd}`, { cwd, encoding: 'utf-8', timeout: CONFIG.git.commandTimeout }).trim();
+    return execSync(`git ${cmd}`, {
+      cwd,
+      encoding: 'utf-8',
+      timeout: CONFIG.git.commandTimeout,
+      // Prevent shell expansion on Windows
+      windowsHide: true,
+    }).trim();
   } catch {
     return '';
   }
@@ -69,21 +80,25 @@ function isGitRepo(dir: string): boolean {
 
 // ── Main Tracker ──
 
+/** Maximum watch events kept in memory */
+const MAX_WATCH_EVENTS = 500;
+
 export class AgentTracker {
   private rootDir: string;
   private sessions: AgentSession[] = [];
   private watchEvents: AgentEvent[] = [];
   private eventId = 0;
-  readonly isGit: boolean;
+  private _isGit: boolean;
+  get isGit(): boolean { return this._isGit; }
 
   constructor(rootDir: string) {
     this.rootDir = path.resolve(rootDir);
-    this.isGit = isGitRepo(this.rootDir);
+    this._isGit = isGitRepo(this.rootDir);
   }
 
   updateTarget(newRoot: string) {
     this.rootDir = path.resolve(newRoot);
-    (this as { isGit: boolean }).isGit = isGitRepo(this.rootDir);
+    this._isGit = isGitRepo(this.rootDir);
     this.watchEvents = [];
     this.sessions = [];
     this.eventId = 0;
@@ -95,8 +110,10 @@ export class AgentTracker {
   getGitLog(limit = CONFIG.git.defaultLogLimit): GitCommit[] {
     if (!this.isGit) return [];
 
+    // Use record separator (0x1e) as delimiter — safe against any field content
+    const SEP = String.fromCharCode(0x1e);
     const raw = git(
-      `log -n ${limit} --format="COMMIT:%H|%h|%an|%ae|%at|%s" --name-status`,
+      `log -n ${limit} --format="COMMIT:%H${SEP}%h${SEP}%an${SEP}%ae${SEP}%at${SEP}%s" --name-status`,
       this.rootDir,
     );
     if (!raw) return [];
@@ -111,9 +128,9 @@ export class AgentTracker {
         // Flush previous
         if (current) commits.push({ ...current, files, fileStatuses });
 
-        const parts = line.slice(7).split('|');
+        const parts = line.slice(7).split(SEP);
         const [hash, shortHash, author, email, atStr, ...msgParts] = parts;
-        const message = msgParts.join('|');
+        const message = msgParts.join(SEP);
         const { type, scope, subject } = parseConventional(message);
         const { isAgent, agentName } = detectAgent(author, message);
 
@@ -211,7 +228,7 @@ export class AgentTracker {
       // Count co-occurrences
       for (let i = 0; i < uniqueFiles.length; i++) {
         for (let j = i + 1; j < uniqueFiles.length; j++) {
-          const key = [uniqueFiles[i], uniqueFiles[j]].sort().join('||');
+          const key = [uniqueFiles[i], uniqueFiles[j]].sort().join('\0');
           pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
         }
       }
@@ -220,7 +237,7 @@ export class AgentTracker {
     const coChanges: GitCoChange[] = [];
     for (const [key, frequency] of pairCount) {
       if (frequency < minFrequency) continue;
-      const [fileA, fileB] = key.split('||');
+      const [fileA, fileB] = key.split('\0');
       const maxIndividual = Math.max(fileCount.get(fileA) ?? 1, fileCount.get(fileB) ?? 1);
       coChanges.push({
         fileA, fileB, frequency,
@@ -403,6 +420,10 @@ export class AgentTracker {
       filePath,
     };
     this.watchEvents.push(event);
+    // Evict oldest events when exceeding memory bound
+    if (this.watchEvents.length > MAX_WATCH_EVENTS) {
+      this.watchEvents = this.watchEvents.slice(-MAX_WATCH_EVENTS);
+    }
     return event;
   }
 

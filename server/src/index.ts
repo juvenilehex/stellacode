@@ -57,8 +57,37 @@ rebuildGraph();
 
 // Express app
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// ── Security middleware ──
+const ALLOWED_ORIGINS = [
+  `http://localhost:${PORT}`,
+  'http://localhost:5173',   // Vite dev server
+  'http://127.0.0.1:5173',
+  `http://127.0.0.1:${PORT}`,
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, Postman, same-origin)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS blocked'));
+    }
+  },
+}));
+
+app.use(express.json({ limit: '1mb' }));
+
+// Security headers
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '0');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
 
 // API routes
 app.get('/api/graph', (_req, res) => {
@@ -102,7 +131,18 @@ app.post('/api/target', (req, res) => {
     return res.status(400).json({ error: 'path is required' });
   }
 
+  // Reject null bytes and suspicious patterns
+  if (newTarget.includes('\0') || /\.\.[/\\]/.test(newTarget)) {
+    return res.status(400).json({ error: 'Invalid path' });
+  }
+
   const resolved = path.resolve(newTarget);
+
+  // Block sensitive directories
+  const blocked = ['/etc', '/var', '/proc', '/sys', '/dev', 'C:\\Windows', 'C:\\Program Files'];
+  if (blocked.some(b => resolved.toLowerCase().startsWith(b.toLowerCase()))) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   try {
     if (!fs.statSync(resolved).isDirectory()) {
@@ -136,7 +176,8 @@ app.get('/api/git/stats', (_req, res) => {
 });
 
 app.get('/api/git/log', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit as string) || 50, CONFIG.git.maxApiLogLimit);
+  const raw = parseInt(req.query.limit as string);
+  const limit = Math.min(Number.isFinite(raw) && raw > 0 ? raw : 50, CONFIG.git.maxApiLogLimit);
   res.json(agentTracker.getGitLog(limit));
 });
 
@@ -145,7 +186,8 @@ app.get('/api/git/branches', (_req, res) => {
 });
 
 app.get('/api/timeline', (req, res) => {
-  const limit = Math.min(parseInt(req.query.limit as string) || 500, 1000);
+  const raw = parseInt(req.query.limit as string);
+  const limit = Math.min(Number.isFinite(raw) && raw > 0 ? raw : 500, 1000);
   const commits = agentTracker.getTimeline(limit);
   const currentNodes = graphData.nodes.map(n => n.id);
   res.json({ commits, currentNodes });
@@ -160,7 +202,8 @@ app.get('/api/git/co-changes', (_req, res) => {
 
 app.post('/api/relayout', (req, res) => {
   const { dirCohesion } = req.body ?? {};
-  const cohesionValue = typeof dirCohesion === 'number' ? Math.max(0, Math.min(100, dirCohesion)) : 50;
+  const raw = typeof dirCohesion === 'number' && Number.isFinite(dirCohesion) ? dirCohesion : 50;
+  const cohesionValue = Math.max(0, Math.min(100, raw));
 
   // Map 0-100 slider to multiplier: 0→0.1x, 50→1.0x, 100→3.0x
   const multiplier = cohesionValue <= 50
@@ -206,6 +249,12 @@ function onFileChange(event: { type: string; relativePath: string; filePath: str
 
 let activeWatcher = createWatcher(targetDir, onFileChange);
 
+// Global error handler — catch unhandled route errors
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[API] Unhandled error:', err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 // Start
 server.listen(PORT, () => {
   console.log(`[StellaCode] Server running at http://localhost:${PORT}`);
@@ -214,9 +263,17 @@ server.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+function shutdown() {
+  console.log('[StellaCode] Shutting down...');
   activeWatcher.close();
   liveWatcher.close();
   broadcaster.close();
   server.close();
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
+
+// Prevent crash on unhandled rejections
+process.on('unhandledRejection', (reason) => {
+  console.error('[StellaCode] Unhandled rejection:', reason);
 });

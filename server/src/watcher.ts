@@ -39,6 +39,7 @@ export function createWatcher(rootDir: string, onChange: ChangeCallback) {
   watcher.on('add', handleEvent('add'));
   watcher.on('change', handleEvent('change'));
   watcher.on('unlink', handleEvent('unlink'));
+  watcher.on('error', (err) => console.error('[Watch] Watcher error:', err));
 
   return watcher;
 }

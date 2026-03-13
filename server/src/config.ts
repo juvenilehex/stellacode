@@ -1,8 +1,14 @@
 /** Centralized server configuration */
 
+function safePort(raw: string | undefined, fallback: number): number {
+  const parsed = parseInt(raw ?? '', 10);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) return fallback;
+  return parsed;
+}
+
 export const CONFIG = {
   /** HTTP/WS server port */
-  port: parseInt(process.env.STELLA_PORT ?? '3001', 10),
+  port: safePort(process.env.STELLA_PORT, 3001),
 
   watcher: {
     /** File extensions to watch for changes */

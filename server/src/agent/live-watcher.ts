@@ -174,12 +174,23 @@ export class LiveAgentWatcher {
 
     if (stat.size <= lastPos) return;
 
-    const fd = fs.openSync(filePath, 'r');
-    const buf = Buffer.alloc(stat.size - lastPos);
-    fs.readSync(fd, buf, 0, buf.length, lastPos);
-    fs.closeSync(fd);
+    // Cap read size to prevent excessive memory allocation (10MB max)
+    const readSize = Math.min(stat.size - lastPos, 10 * 1024 * 1024);
+    const readEnd = lastPos + readSize;
 
-    this.filePositions.set(filePath, stat.size);
+    let fd: number;
+    try {
+      fd = fs.openSync(filePath, 'r');
+    } catch { return; }
+
+    const buf = Buffer.alloc(readSize);
+    try {
+      fs.readSync(fd, buf, 0, buf.length, lastPos);
+    } finally {
+      fs.closeSync(fd);
+    }
+
+    this.filePositions.set(filePath, readEnd);
 
     const text = buf.toString('utf-8');
     for (const line of text.split('\n')) {
@@ -216,7 +227,7 @@ export class LiveAgentWatcher {
       const relative = this.toRelativePath(filePath);
       if (!relative) return;
 
-      const eventType = toolName === 'Read' ? 'file_edit' as const :
+      const eventType = toolName === 'Read' ? 'file_read' as const :
                         toolName === 'Write' ? 'file_create' as const :
                         'file_edit' as const;
 

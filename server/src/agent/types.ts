@@ -3,7 +3,7 @@
 export interface AgentEvent {
   id: string;
   timestamp: number;
-  type: 'file_edit' | 'file_create' | 'file_delete' | 'command' | 'session_start' | 'session_end';
+  type: 'file_read' | 'file_edit' | 'file_create' | 'file_delete' | 'command' | 'session_start' | 'session_end';
   agent: string;
   filePath?: string;
   description?: string;

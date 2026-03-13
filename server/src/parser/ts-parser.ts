@@ -19,9 +19,6 @@ const PATTERNS = {
   typeDecl: /^(?:export\s+)?type\s+(\w+)\s*=/,
   enumDecl: /^(?:export\s+)?(?:const\s+)?enum\s+(\w+)/,
 
-  // Variables
-  variableDecl: /^(?:export\s+)?(?:const|let|var)\s+(\w+)\s*[=:]/,
-
   // Imports
   importFrom: /^import\s+(?:type\s+)?(.+?)\s+from\s+['"](.+?)['"]/,
   importSide: /^import\s+['"](.+?)['"]/,
@@ -75,14 +72,29 @@ export function parseTsFile(absolutePath: string, relativePath: string): ParsedF
   const imports: ParsedImport[] = [];
   let inClass = false;
   let braceDepth = 0;
+  let inBlockComment = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trimStart();
     const lineNum = i + 1;
 
+    // Track block comments /* ... */
+    if (inBlockComment) {
+      if (trimmed.includes('*/')) {
+        inBlockComment = false;
+      }
+      continue;
+    }
+
     // Skip comments and empty lines
-    if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed === '') continue;
+    if (trimmed === '' || trimmed.startsWith('//')) continue;
+    if (trimmed.startsWith('/*')) {
+      if (!trimmed.includes('*/')) {
+        inBlockComment = true;
+      }
+      continue;
+    }
 
     // Track brace depth for class methods
     for (const ch of line) {
@@ -92,6 +104,21 @@ export function parseTsFile(absolutePath: string, relativePath: string): ParsedF
     if (braceDepth <= 0) inClass = false;
 
     const isExported = trimmed.startsWith('export');
+
+    // Multi-line import: accumulate lines until closing from '...'
+    if (trimmed.startsWith('import') && trimmed.includes('{') && !trimmed.includes('}')) {
+      let accumulated = trimmed;
+      while (i + 1 < lines.length && !accumulated.includes('}')) {
+        i++;
+        accumulated += ' ' + lines[i].trim();
+      }
+      const multiMatch = accumulated.match(PATTERNS.importFrom);
+      if (multiMatch) {
+        const { specifiers, isDefault, isNamespace } = parseImportSpecifiers(multiMatch[1]);
+        imports.push({ source: multiMatch[2], specifiers, isDefault, isNamespace, line: lineNum });
+      }
+      continue;
+    }
 
     // Imports
     let importMatch = trimmed.match(PATTERNS.importFrom);

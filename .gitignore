@@ -11,6 +11,12 @@ Thumbs.db
 # Internal dev scripts
 *.mjs
 
+# Test files — keep out of git
+**/*.test.*
+**/*.spec.*
+**/__tests__/
+coverage/
+
 # Screenshots -- block everything, then whitelist README images
 screenshots/*
 !screenshots/03-constellation-view.png
@@ -19,3 +25,10 @@ screenshots/*
 
 # Client debug screenshots
 client/screenshots/
+
+# IDE / OS junk
+.idea/
+.vscode/
+*.swp
+*.swo
+*~

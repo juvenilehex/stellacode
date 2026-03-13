@@ -1,3 +1,24 @@
+export interface NodeMeta {
+  symbols?: import('../parser/types.js').ParsedSymbol[];
+  imports?: import('../parser/types.js').ParsedImport[];
+  /** All exported symbols are unused by other files */
+  deadExports?: boolean;
+  /** File has no incoming imports and no exports */
+  islandFile?: boolean;
+  /** Git: last modified timestamp */
+  lastModified?: number;
+  /** Git: first commit timestamp */
+  firstCommit?: number;
+  /** Git: total commit count touching this file */
+  commitCount?: number;
+  /** Agent: primary AI agent that touched this file */
+  primaryAgent?: string | null;
+  /** Agent: ratio of agent commits to total commits */
+  agentRatio?: number;
+  /** Agent: last agent to touch this file */
+  lastAgent?: string | null;
+}
+
 export interface GraphNode {
   id: string;
   label: string;
@@ -20,7 +41,7 @@ export interface GraphNode {
   /** Visual scale factor */
   scale: number;
   /** Metadata for detail panel */
-  meta?: Record<string, unknown>;
+  meta?: NodeMeta;
 }
 
 export interface GraphEdge {

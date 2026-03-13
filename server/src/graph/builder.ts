@@ -146,11 +146,17 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
   }
 
   // ── Dead code detection (exported symbols no one imports) ──
-  const importedSpecifiers = new Set<string>();
+  // Build a set of (specifier, resolved target file) pairs for accurate matching
+  const importedByFile = new Map<string, Set<string>>(); // targetFile -> imported specifier names
   for (const file of files) {
     for (const imp of file.imports) {
-      for (const spec of imp.specifiers) {
-        importedSpecifiers.add(spec);
+      const resolved = resolveImport(file.relativePath, imp.source, relPathSet);
+      if (resolved) {
+        let specSet = importedByFile.get(resolved);
+        if (!specSet) { specSet = new Set(); importedByFile.set(resolved, specSet); }
+        for (const spec of imp.specifiers) {
+          specSet.add(spec);
+        }
       }
     }
   }
@@ -158,10 +164,14 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
     const node = fileMap.get(file.relativePath);
     if (!node) continue;
     const exportedSymbols = file.symbols.filter(s => s.exported);
-    const unusedExports = exportedSymbols.filter(s => !importedSpecifiers.has(s.name));
+    const importedNames = importedByFile.get(file.relativePath);
+    const unusedExports = exportedSymbols.filter(s => !importedNames?.has(s.name));
     if (exportedSymbols.length > 0 && unusedExports.length === exportedSymbols.length) {
-      // All exports are unused — potential dead code
-      if (node.meta) node.meta.deadExports = true;
+      // All exports are unused — potential dead code (also check if file has incoming import edges)
+      const hasIncomingImport = edges.some(e => e.target === node.id && e.type === 'import');
+      if (!hasIncomingImport) {
+        if (node.meta) node.meta.deadExports = true;
+      }
     }
     // Files with zero imports pointing to them and zero exports
     const hasIncomingImport = edges.some(e => e.target === node.id && e.type === 'import');
@@ -237,8 +247,8 @@ function resolveImport(fromFile: string, importSource: string, knownFiles: Set<s
   const fromDir = path.dirname(fromFile);
   const resolved = path.posix.normalize(path.posix.join(fromDir, importSource));
 
-  // Try exact match, then with extensions
-  const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '/index.ts', '/index.tsx', '/index.js'];
+  // Try exact match, then with extensions (including Python)
+  const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.py', '/index.ts', '/index.tsx', '/index.js', '/__init__.py'];
   for (const ext of extensions) {
     const candidate = resolved + ext;
     if (knownFiles.has(candidate)) return candidate;
