@@ -45,6 +45,8 @@ export function useWebSocket() {
 
     ws.onclose = () => {
       console.log('[WS] Disconnected, reconnecting...');
+      // Clear previous timer to prevent accumulation
+      if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
       reconnectTimeout.current = setTimeout(connect, CONFIG.ws.reconnectDelay);
     };
 

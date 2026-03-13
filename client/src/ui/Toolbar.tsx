@@ -446,12 +446,16 @@ export function Toolbar() {
           color: COLORS.textSecondary,
         }}
         onClick={() => {
-          const canvas = document.querySelector('canvas');
-          if (!canvas) return;
-          const link = document.createElement('a');
-          link.download = `stellacode-${Date.now()}.png`;
-          link.href = canvas.toDataURL('image/png');
-          link.click();
+          try {
+            const canvas = document.querySelector('canvas');
+            if (!canvas) return;
+            const link = document.createElement('a');
+            link.download = `stellacode-${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+          } catch (err) {
+            console.warn('[Capture] Screenshot failed:', err);
+          }
         }}
         title="Save screenshot (PNG)"
       >

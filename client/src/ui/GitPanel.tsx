@@ -13,7 +13,7 @@ export function GitPanel() {
     fetch('/api/git/stats')
       .then(r => r.ok ? r.json() : null)
       .then(setStats)
-      .catch(() => {});
+      .catch((err) => console.warn('[GitPanel] Failed to fetch stats:', err));
   }, [graphVersion]);
 
   if (!stats || stats.totalCommits === 0) return null;

@@ -47,7 +47,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
             </span>
             <span className="text-[10px] px-1.5 py-0.5 rounded"
               style={{ background: 'rgba(199,164,255,0.1)', color: COLORS.directory }}>
-              v1.0
+              v1.1
             </span>
           </div>
           <button
@@ -109,7 +109,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
         </div>
 
         {/* Principles */}
-        <div className="px-4 py-3">
+        <div className="px-4 py-3" style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
           <div className="mb-2 font-medium" style={{ color: COLORS.textPrimary }}>
             Principles
           </div>
@@ -117,6 +117,36 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
             <div>1. Observe, don't prescribe -- surface patterns, let humans decide.</div>
             <div>2. Time over snapshot -- history shapes understanding of direction.</div>
             <div>3. Discover, don't search -- hidden relationships are the real insight.</div>
+          </div>
+        </div>
+
+        {/* Feedback */}
+        <div className="px-4 py-3">
+          <div className="mb-2 font-medium" style={{ color: COLORS.textPrimary }}>
+            Feedback
+          </div>
+          <div className="space-y-1.5" style={{ color: COLORS.textSecondary }}>
+            <div>Bug reports, feature ideas, or share your constellation:</div>
+            <div className="flex items-center gap-3">
+              <a
+                href="https://discord.gg/VGQJSda5eZ"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-80 transition-opacity"
+                style={{ color: '#7289da' }}
+              >
+                Discord
+              </a>
+              <a
+                href="https://github.com/juvenilehex/stellacode/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-80 transition-opacity"
+                style={{ color: COLORS.textSecondary }}
+              >
+                GitHub Issues
+              </a>
+            </div>
           </div>
         </div>
       </div>

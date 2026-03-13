@@ -92,8 +92,15 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   snapshots: new Map(),
 
   fetchTimeline: async () => {
-    const res = await fetch('/api/timeline');
-    const data = await res.json();
+    let data: { commits: TimelineCommit[] };
+    try {
+      const res = await fetch('/api/timeline');
+      if (!res.ok) { console.warn('[Timeline] Fetch failed:', res.status); return; }
+      data = await res.json();
+    } catch (err) {
+      console.warn('[Timeline] Fetch error:', err);
+      return;
+    }
     const commits = data.commits as TimelineCommit[];
 
     // Pre-cache snapshots every SNAPSHOT_INTERVAL commits

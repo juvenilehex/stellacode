@@ -19,7 +19,7 @@ If you've been staring at strings of text in a dark room for hours, maybe watchi
 ## Quick Start
 
 ```bash
-git clone https://github.com/ppark-jjong/stellacode.git
+git clone https://github.com/juvenilehex/stellacode.git
 cd stellacode
 npm install
 npm run dev
@@ -102,7 +102,7 @@ Press `3` to save a PNG screenshot of your constellation.
 | Color mode: default | `1` |
 | Color mode: age | `2` |
 | Color mode: agent | `3` |
-| Screenshot | `3` |
+| Screenshot | Capture button |
 
 ## Architecture
 
@@ -147,7 +147,7 @@ Data flow:
 | `GET /api/agent/sessions` | Active agent sessions |
 | `POST /api/target` | Change target directory |
 
-WebSocket at `ws://localhost:3333/ws` pushes `graph:update` and `file:change` events.
+WebSocket at `ws://localhost:3001/ws` pushes `graph:update`, `file:change`, and `agent:live` events.
 
 ## Development
 
@@ -167,7 +167,7 @@ STELLA_TARGET=./ npm run dev
 
 StellaCode is not accepting code contributions right now, but feedback is welcome.
 
-- **Discord**: [Join the server](https://discord.gg/Mpvn4xEx) -- bug reports, feature ideas, or just share your constellation
+- **Discord**: [Join the server](https://discord.gg/VGQJSda5eZ) -- bug reports, feature ideas, or just share your constellation
 - **GitHub Issues**: open an issue if you prefer
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.

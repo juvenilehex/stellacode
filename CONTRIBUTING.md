@@ -8,7 +8,7 @@ That said, **your feedback is the most valuable thing you can give this project.
 
 ### Discord (preferred)
 
-Join the StellaCode Discord: **[discord.gg/Mpvn4xEx](https://discord.gg/Mpvn4xEx)**
+Join the StellaCode Discord: **[discord.gg/Mpvn4xEx](https://discord.gg/VGQJSda5eZ)**
 
 Channels:
 - **#bug-reports** -- something broke or behaves unexpectedly
@@ -35,7 +35,7 @@ Not every request will be implemented, but every one will be read.
 If you want to try it out and report back:
 
 ```bash
-git clone https://github.com/ppark-jjong/stellacode.git
+git clone https://github.com/juvenilehex/stellacode.git
 cd stellacode
 npm install
 npm run dev
