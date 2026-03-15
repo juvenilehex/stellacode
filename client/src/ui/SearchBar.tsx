@@ -1,12 +1,17 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useGraphStore } from '../store/graph-store';
 import { COLORS, getNodeColor } from '../utils/colors';
 
 export function SearchBar() {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const data = useGraphStore(s => s.data);
   const selectNode = useGraphStore(s => s.selectNode);
+
+  useEffect(() => {
+    return () => { if (blurTimer.current) clearTimeout(blurTimer.current); };
+  }, []);
 
   const results = useMemo(() => {
     if (!query.trim() || !data) return [];
@@ -30,7 +35,7 @@ export function SearchBar() {
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 200)}
+          onBlur={() => { blurTimer.current = setTimeout(() => setOpen(false), 200); }}
           placeholder="Search files..."
           className="w-64 px-3 py-1.5 rounded-md text-xs outline-none"
           style={{

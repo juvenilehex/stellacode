@@ -15,6 +15,13 @@ import { COLORS } from '../utils/colors';
 import { useSettingsStore } from '../store/settings-store';
 import { useTimelineStore } from '../store/timeline-store';
 
+declare global {
+  interface Window {
+    __STELLA_FPS?: number;
+    __SHOW_FPS?: boolean;
+  }
+}
+
 /** Above this threshold, switch to instanced rendering */
 const INSTANCE_THRESHOLD = 100;
 
@@ -148,7 +155,7 @@ function FPSMonitor() {
       lastTime.current = now;
     }
     // Expose FPS to window for Playwright tests
-    (window as any).__STELLA_FPS = fps;
+    window.__STELLA_FPS = fps;
   });
 
   return (
@@ -167,15 +174,15 @@ function FPSOverlay() {
   useEffect(() => {
     // Check if FPS display requested
     const params = new URLSearchParams(window.location.search);
-    if (params.get('fps') === '1' || (window as any).__SHOW_FPS) {
+    if (params.get('fps') === '1' || window.__SHOW_FPS) {
       setShow(true);
     }
 
     const iv = setInterval(() => {
-      const f = (window as any).__STELLA_FPS;
+      const f = window.__STELLA_FPS;
       if (typeof f === 'number') setFps(f);
       // Re-check show flag
-      if ((window as any).__SHOW_FPS && !show) setShow(true);
+      if (window.__SHOW_FPS && !show) setShow(true);
     }, 500);
     return () => clearInterval(iv);
   }, []);

@@ -237,7 +237,9 @@ export class AgentTracker {
     const coChanges: GitCoChange[] = [];
     for (const [key, frequency] of pairCount) {
       if (frequency < minFrequency) continue;
-      const [fileA, fileB] = key.split('\0');
+      const parts = key.split('\0');
+      if (parts.length < 2) continue;
+      const [fileA, fileB] = parts;
       const maxIndividual = Math.max(fileCount.get(fileA) ?? 1, fileCount.get(fileB) ?? 1);
       coChanges.push({
         fileA, fileB, frequency,

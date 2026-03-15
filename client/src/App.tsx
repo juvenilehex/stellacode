@@ -39,9 +39,10 @@ function Observatory() {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // Skip if typing in an input/textarea
-      const tag = (e.target as HTMLElement).tagName;
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      const tag = target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') {
-        if (e.key === 'Escape') (e.target as HTMLElement).blur();
+        if (e.key === 'Escape') target?.blur();
         return;
       }
 
@@ -103,7 +104,7 @@ function Observatory() {
       {/* UI overlay — fades out in observe mode */}
       <div
         className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
-        style={{ opacity: observeMode ? 0 : 1, pointerEvents: observeMode ? 'none' : undefined }}
+        style={{ opacity: observeMode ? 0 : 1, pointerEvents: observeMode ? 'none' : 'auto' }}
       >
         <Toolbar />
 

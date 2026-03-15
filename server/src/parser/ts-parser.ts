@@ -37,7 +37,7 @@ function parseImportSpecifiers(raw: string): { specifiers: string[]; isDefault: 
   // import { A, B } from '...'
   const braceMatch = trimmed.match(/\{(.+?)\}/);
   if (braceMatch) {
-    const named = braceMatch[1].split(',').map(s => s.trim().split(/\s+as\s+/).pop()!.trim()).filter(Boolean);
+    const named = braceMatch[1].split(',').map(s => { const parts = s.trim().split(/\s+as\s+/); return (parts[parts.length - 1] ?? '').trim(); }).filter(Boolean);
     // Check for default import before braces
     const beforeBrace = trimmed.slice(0, trimmed.indexOf('{')).trim().replace(/,\s*$/, '');
     if (beforeBrace) {

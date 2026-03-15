@@ -39,6 +39,8 @@ export class LiveAgentWatcher {
   private onEvent: EventCallback;
   private eventId = 0;
   private scanInterval: ReturnType<typeof setInterval> | null = null;
+  private scanRetries = 0;
+  private readonly MAX_SCAN_RETRIES = 60; // 5 minutes at 5s intervals
   private knownFiles = new Set<string>();
 
   constructor(targetDir: string, onEvent: EventCallback) {
@@ -59,8 +61,15 @@ export class LiveAgentWatcher {
     const projectDir = this.findProjectDir();
     if (!projectDir) {
       console.log('[LiveAgent] No Claude Code session directory found for this project');
-      // Keep scanning periodically in case sessions start later
+      // Keep scanning periodically in case sessions start later (capped retries)
       this.scanInterval = setInterval(() => {
+        this.scanRetries++;
+        if (this.scanRetries >= this.MAX_SCAN_RETRIES) {
+          if (this.scanInterval) clearInterval(this.scanInterval);
+          this.scanInterval = null;
+          console.log('[LiveAgent] Gave up scanning after', this.MAX_SCAN_RETRIES, 'attempts');
+          return;
+        }
         const dir = this.findProjectDir();
         if (dir) this.watchDirectory(dir);
       }, 5000);

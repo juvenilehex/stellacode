@@ -65,7 +65,7 @@ export function parsePythonFile(absolutePath: string, relativePath: string): Par
     // from X import Y
     const fromMatch = trimmed.match(PATTERNS.importFrom);
     if (fromMatch) {
-      const specifiers = fromMatch[2].split(',').map(s => s.trim().split(/\s+as\s+/).pop()!.trim()).filter(Boolean);
+      const specifiers = fromMatch[2].split(',').map(s => { const parts = s.trim().split(/\s+as\s+/); return (parts[parts.length - 1] ?? '').trim(); }).filter(Boolean);
       imports.push({ source: fromMatch[1], specifiers, isDefault: false, isNamespace: false, line: lineNum });
       continue;
     }

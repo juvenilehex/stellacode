@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { FilterKey } from '../store/graph-store';
 
 /** Observatory color palette */
 
@@ -202,7 +203,7 @@ export function getCommitTypeColor(type: string): string {
 }
 
 /** Map a node to its legend filter key */
-export function getNodeFilterKey(type: string, language?: string): string {
+export function getNodeFilterKey(type: string, language?: string): FilterKey | '' {
   if (type === 'directory') return 'directory';
   switch (language) {
     case 'typescript': return 'typescript';

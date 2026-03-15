@@ -121,7 +121,7 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
 
       // Legend filter: hide nodes whose type is toggled off
       const fk = getNodeFilterKey(node.type, node.language);
-      const isFiltered = fk !== '' && hiddenFilters.has(fk as any);
+      const isFiltered = fk !== '' && hiddenFilters.has(fk);
 
       // LOD culling or filter hiding
       if (isTimelineHidden || isFiltered || (lodLevel === 'project' && node.type === 'file'

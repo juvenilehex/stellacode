@@ -169,7 +169,7 @@ export function ConstellationNode({ node }: ConstellationNodeProps) {
 
   // Early returns AFTER all hooks (React rules of hooks)
   if (timelineVisibleIds !== null && !timelineVisibleIds.has(node.id)) return null;
-  if (filterKey && hiddenFilters.has(filterKey as any)) return null;
+  if (filterKey !== '' && hiddenFilters.has(filterKey)) return null;
   if (lodLevel === 'project' && node.type === 'file' && !isSelected && !isConnected) return null;
 
   return (

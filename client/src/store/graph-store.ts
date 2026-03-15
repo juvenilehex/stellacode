@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import type { GraphData, GraphNode, GraphEdge } from '../types/graph';
 
+declare global {
+  interface Window {
+    __ZUSTAND_GRAPH_STORE?: typeof useGraphStore;
+  }
+}
+
 export type LODLevel = 'project' | 'directory' | 'file';
 
 /** Legend filter keys — toggleable visibility */
@@ -138,10 +144,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dirCohesion }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.warn('[Relayout] Server returned', res.status);
+      }
       // Graph update will come via WebSocket broadcast
-    } catch {
-      // Silent fail — layout will stay as-is
+    } catch (err) {
+      console.warn('[Relayout] Network error:', err);
     }
   },
 
@@ -167,5 +175,5 @@ export const useGraphStore = create<GraphState>((set, get) => ({
 
 // Expose store to window for testing (Playwright stress tests)
 if (typeof window !== 'undefined') {
-  (window as any).__ZUSTAND_GRAPH_STORE = useGraphStore;
+  window.__ZUSTAND_GRAPH_STORE = useGraphStore;
 }

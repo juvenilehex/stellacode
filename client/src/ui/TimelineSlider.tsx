@@ -64,7 +64,7 @@ export function TimelineSlider() {
         scrubTo(Math.min(currentIndex + 1, total - 1));
       }
       if (e.key === 'ArrowLeft') {
-        scrubTo(Math.max(currentIndex - 1, -1));
+        scrubTo(Math.max(currentIndex - 1, 0));
       }
       if (e.key === 'Escape') {
         exitReplay();
