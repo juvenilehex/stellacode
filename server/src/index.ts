@@ -90,6 +90,16 @@ app.use((_req, res, next) => {
   res.setHeader('X-XSS-Protection', '0');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  // CSP: restrict resource loading to same origin; API responses are JSON so
+  // script/style directives are irrelevant, but browsers enforce CSP on the
+  // served client HTML too — block all external resource origins.
+  // 'unsafe-eval' is required by Three.js/React-Three-Fiber GLSL shader compilation.
+  // blob: on worker-src is required for Three.js inline worker threads.
+  // blob: on img-src is required for Three.js canvas/texture data URLs.
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; frame-ancestors 'none'",
+  );
   next();
 });
 
@@ -107,7 +117,12 @@ app.get('/api/graph', (_req, res) => {
 });
 
 app.get('/api/graph/node/:id', (req, res) => {
-  const nodeId = decodeURIComponent(req.params.id);
+  // Bound the decoded ID length — file paths in real projects rarely exceed
+  // 4096 chars; reject anything longer to prevent O(n) scan on a huge string.
+  const raw = req.params.id;
+  if (raw.length > 8192) return res.status(400).json({ error: 'ID too long' });
+  const nodeId = decodeURIComponent(raw);
+  if (nodeId.length > 4096) return res.status(400).json({ error: 'ID too long' });
   const node = graphData.nodes.find(n => n.id === nodeId);
   if (!node) return res.status(404).json({ error: 'Node not found' });
 
@@ -188,7 +203,8 @@ app.get('/api/git/stats', (_req, res) => {
 });
 
 app.get('/api/git/log', (req, res) => {
-  const raw = parseInt(req.query.limit as string);
+  // Use String() to safely handle array values (e.g. ?limit=1&limit=2 → "1,2" → NaN → default)
+  const raw = parseInt(String(req.query.limit ?? ''));
   const limit = Math.min(Number.isFinite(raw) && raw > 0 ? raw : 50, CONFIG.git.maxApiLogLimit);
   res.json(agentTracker.getGitLog(limit));
 });
@@ -198,7 +214,7 @@ app.get('/api/git/branches', (_req, res) => {
 });
 
 app.get('/api/timeline', (req, res) => {
-  const raw = parseInt(req.query.limit as string);
+  const raw = parseInt(String(req.query.limit ?? ''));
   const limit = Math.min(Number.isFinite(raw) && raw > 0 ? raw : 500, 1000);
   const commits = agentTracker.getTimeline(limit);
   const currentNodes = graphData.nodes.map(n => n.id);

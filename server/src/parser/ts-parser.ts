@@ -22,7 +22,10 @@ const PATTERNS = {
   // Imports
   importFrom: /^import\s+(?:type\s+)?(.+?)\s+from\s+['"](.+?)['"]/,
   importSide: /^import\s+['"](.+?)['"]/,
-  require: /(?:const|let|var)\s+(.+?)\s*=\s*require\(['"](.+?)['"]\)/,
+  // Use possessive-equivalent character classes ([^=\n]+, [^'"]+) instead of
+  // lazy .+? quantifiers to prevent catastrophic backtracking (ReDoS) on
+  // pathological input such as lines with many spaces before '='.
+  require: /(?:const|let|var)\s+([^=\n]+?)\s*=\s*require\(['"]([^'"]+)['"]\)/,
 };
 
 function parseImportSpecifiers(raw: string): { specifiers: string[]; isDefault: boolean; isNamespace: boolean } {

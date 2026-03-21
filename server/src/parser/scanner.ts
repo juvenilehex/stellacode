@@ -15,6 +15,9 @@ const MAX_DEPTH = 30;
 /** Maximum files to scan to prevent memory exhaustion */
 const MAX_FILES = 10_000;
 
+/** Maximum individual file size to parse (10 MB) — larger files are skipped */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 export function scanDirectory(rootDir: string): ScannedFile[] {
   const root = path.resolve(rootDir);
   const files: ScannedFile[] = [];
@@ -52,12 +55,16 @@ export function scanDirectory(rootDir: string): ScannedFile[] {
         if (CONFIG.scanner.supportedExtensions.has(ext)) {
           try {
             const stat = fs.statSync(fullPath);
-            files.push({
-              absolutePath: fullPath,
-              relativePath: path.relative(root, fullPath).replace(/\\/g, '/'),
-              extension: ext,
-              size: stat.size,
-            });
+            if (stat.size > MAX_FILE_SIZE) {
+              console.warn(`[Scanner] Skipping oversized file (${stat.size} bytes): ${fullPath}`);
+            } else {
+              files.push({
+                absolutePath: fullPath,
+                relativePath: path.relative(root, fullPath).replace(/\\/g, '/'),
+                extension: ext,
+                size: stat.size,
+              });
+            }
           } catch (err) {
             console.warn('[Scanner]', fullPath, 'stat failed:', (err as Error).message);
           }

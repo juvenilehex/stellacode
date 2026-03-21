@@ -37,9 +37,23 @@ export class WsBroadcaster {
 
       ws.on('error', (err) => console.error('[WS] Client error:', err.message));
 
-      // Reject oversized messages (1MB limit)
+      // Reject oversized messages (1MB limit).
+      // RawData = Buffer | ArrayBuffer | Buffer[] — handle every variant so the
+      // size check cannot be bypassed by sending a fragmented or ArrayBuffer message.
       ws.on('message', (data) => {
-        if (Buffer.byteLength(data as Buffer) > 1_048_576) {
+        let byteLen: number;
+        if (Buffer.isBuffer(data)) {
+          byteLen = data.byteLength;
+        } else if (Array.isArray(data)) {
+          byteLen = (data as Buffer[]).reduce((sum, chunk) => sum + chunk.byteLength, 0);
+        } else if (data instanceof ArrayBuffer) {
+          byteLen = data.byteLength;
+        } else if (typeof data === 'string') {
+          byteLen = Buffer.byteLength(data, 'utf8');
+        } else {
+          byteLen = 0;
+        }
+        if (byteLen > 1_048_576) {
           ws.close(1009, 'Message too large');
         }
       });

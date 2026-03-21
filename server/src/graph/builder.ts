@@ -186,7 +186,9 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
   return {
     nodes,
     edges,
-    rootDir: path.resolve(rootDir),
+    // Expose only the basename of the root directory, not the full absolute path,
+    // to avoid leaking OS usernames and directory structure to API consumers.
+    rootDir: path.basename(path.resolve(rootDir)),
     timestamp: Date.now(),
     stats: {
       totalFiles: files.length,

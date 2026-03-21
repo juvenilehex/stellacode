@@ -42,6 +42,10 @@ export class LiveAgentWatcher {
   private scanRetries = 0;
   private readonly MAX_SCAN_RETRIES = 60; // 5 minutes at 5s intervals
   private knownFiles = new Set<string>();
+  /** Per-file debounce timers — coalesce rapid fs.watch events to prevent
+   *  repeated 10 MB buffer allocations during high-frequency JSONL writes. */
+  private readDebounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly READ_DEBOUNCE_MS = 100;
 
   constructor(targetDir: string, onEvent: EventCallback) {
     this.targetDir = path.resolve(targetDir);
@@ -164,10 +168,16 @@ export class LiveAgentWatcher {
       this.filePositions.set(filePath, 0);
     }
 
-    // Watch for changes
+    // Watch for changes — debounce rapid events to avoid repeated 10 MB allocations
     try {
       const watcher = fs.watch(filePath, () => {
-        this.readNewLines(filePath);
+        const existing = this.readDebounceTimers.get(filePath);
+        if (existing) clearTimeout(existing);
+        const timer = setTimeout(() => {
+          this.readDebounceTimers.delete(filePath);
+          this.readNewLines(filePath);
+        }, this.READ_DEBOUNCE_MS);
+        this.readDebounceTimers.set(filePath, timer);
       });
       watcher.on('error', () => { /* ignore watch errors */ });
       this.watchers.push(watcher);
@@ -302,5 +312,10 @@ export class LiveAgentWatcher {
       clearInterval(this.scanInterval);
       this.scanInterval = null;
     }
+    // Clear any pending debounce timers to prevent timer leaks
+    for (const timer of this.readDebounceTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.readDebounceTimers.clear();
   }
 }
