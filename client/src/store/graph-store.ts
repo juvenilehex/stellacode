@@ -173,7 +173,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   setTimelineVisibleIds: (ids) => set({ timelineVisibleIds: ids }),
 }));
 
-// Expose store to window for testing (Playwright stress tests)
-if (typeof window !== 'undefined') {
+// Expose store to window for testing (dev only)
+if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
   window.__ZUSTAND_GRAPH_STORE = useGraphStore;
 }

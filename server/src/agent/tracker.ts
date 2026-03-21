@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { CONFIG } from '../config.js';
 import type {
   AgentEvent, AgentSession,
@@ -60,18 +60,12 @@ function detectAgent(author: string, message: string): { isAgent: boolean; agent
 
 // ── Git command helpers ──
 
-function git(cmd: string, cwd: string): string {
-  // Reject shell metacharacters to prevent command injection
-  if (/[;&|`${}]/.test(cmd)) {
-    console.error('[Git] Rejected command with shell metacharacters:', cmd);
-    return '';
-  }
+function git(args: string[], cwd: string): string {
   try {
-    return execSync(`git ${cmd}`, {
+    return execFileSync('git', args, {
       cwd,
       encoding: 'utf-8',
       timeout: CONFIG.git.commandTimeout,
-      // Prevent shell expansion on Windows
       windowsHide: true,
     }).trim();
   } catch {
@@ -80,7 +74,7 @@ function git(cmd: string, cwd: string): string {
 }
 
 function isGitRepo(dir: string): boolean {
-  return git('rev-parse --is-inside-work-tree', dir) === 'true';
+  return git(['rev-parse', '--is-inside-work-tree'], dir) === 'true';
 }
 
 // ── Main Tracker ──
@@ -118,7 +112,7 @@ export class AgentTracker {
     // Use record separator (0x1e) as delimiter — safe against any field content
     const SEP = String.fromCharCode(0x1e);
     const raw = git(
-      `log -n ${limit} --format="COMMIT:%H${SEP}%h${SEP}%an${SEP}%ae${SEP}%at${SEP}%s" --name-status`,
+      ['log', `-n`, `${limit}`, `--format=COMMIT:%H${SEP}%h${SEP}%an${SEP}%ae${SEP}%at${SEP}%s`, '--name-status'],
       this.rootDir,
     );
     if (!raw) return [];
@@ -191,7 +185,7 @@ export class AgentTracker {
   getBranches(): GitBranch[] {
     if (!this.isGit) return [];
 
-    const raw = git('branch -a --format="%(refname:short)\t%(HEAD)\t%(objectname:short)\t%(creatordate:unix)"', this.rootDir);
+    const raw = git(['branch', '-a', '--format=%(refname:short)\t%(HEAD)\t%(objectname:short)\t%(creatordate:unix)'], this.rootDir);
     if (!raw) return [];
 
     return raw.split('\n').filter(Boolean).map(line => {
@@ -207,12 +201,12 @@ export class AgentTracker {
 
   getCurrentBranch(): string {
     if (!this.isGit) return '';
-    return git('branch --show-current', this.rootDir);
+    return git(['branch', '--show-current'], this.rootDir);
   }
 
   isWorkingTreeClean(): boolean {
     if (!this.isGit) return true;
-    return git('status --porcelain', this.rootDir) === '';
+    return git(['status', '--porcelain'], this.rootDir) === '';
   }
 
   // ── Co-Change Analysis (temporal coupling) ──

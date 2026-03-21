@@ -3,7 +3,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, statSync, readFileSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -101,9 +101,12 @@ if (autoOpen) {
     try {
       const { platform } = await import('node:os');
       const os = platform();
-      const cmd = os === 'win32' ? 'start' : os === 'darwin' ? 'open' : 'xdg-open';
-      const openArgs = os === 'win32' ? ['', url] : [url];
-      spawn(cmd, openArgs, { shell: true, stdio: 'ignore', detached: true }).unref();
+      if (os === 'win32') {
+        spawn('cmd.exe', ['/c', 'start', '', url], { stdio: 'ignore', detached: true }).unref();
+      } else {
+        const cmd = os === 'darwin' ? 'open' : 'xdg-open';
+        spawn(cmd, [url], { stdio: 'ignore', detached: true }).unref();
+      }
       console.log(`[stellacode] Opening ${url}`);
     } catch {
       console.log(`[stellacode] Open ${url} in your browser`);

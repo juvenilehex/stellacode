@@ -281,7 +281,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // Start
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`[StellaCode] Server running at http://localhost:${PORT}`);
   console.log(`[StellaCode] WebSocket at ws://localhost:${PORT}/ws`);
   console.log(`[StellaCode] API: GET /api/graph, /api/stats, /api/target`);

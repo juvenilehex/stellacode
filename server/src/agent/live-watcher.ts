@@ -133,7 +133,7 @@ export class LiveAgentWatcher {
       const watcher = fs.watch(projectDir, (eventType, filename) => {
         if (filename?.endsWith('.jsonl')) {
           const filePath = path.join(projectDir, filename);
-          if (!this.knownFiles.has(filePath)) {
+          if (!this.knownFiles.has(filePath) && this.knownFiles.size < 10) {
             this.knownFiles.add(filePath);
             this.tailFile(filePath);
           }

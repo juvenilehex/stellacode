@@ -108,7 +108,8 @@ export function parseTsFile(absolutePath: string, relativePath: string): ParsedF
     // Multi-line import: accumulate lines until closing from '...'
     if (trimmed.startsWith('import') && trimmed.includes('{') && !trimmed.includes('}')) {
       let accumulated = trimmed;
-      while (i + 1 < lines.length && !accumulated.includes('}')) {
+      let maxLines = 50;
+      while (i + 1 < lines.length && !accumulated.includes('}') && --maxLines > 0) {
         i++;
         accumulated += ' ' + lines[i].trim();
       }
