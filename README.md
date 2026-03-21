@@ -9,15 +9,15 @@
 
 ## Why
 
-In the age of vibe coding, code appears faster than anyone can read it. You talk to an LLM, files multiply, and suddenly you have a project you built but don't quite understand. What connects to what? What did the AI actually change? What keeps breaking together?
+We talk to AI, and code appears. Files multiply. One day you look around and realize you have a project you built -- but don't quite recognize anymore. Where does this connect? What did the AI change while you weren't looking? What keeps quietly breaking together?
 
-Most tools show you text. StellaCode shows you stars.
+It can feel a little overwhelming. We thought it might help to just... see it.
 
-Every file becomes a star. Every import draws a constellation line. Every hidden coupling -- files that always change together but share no import -- glows as a teal thread you never knew existed. And when an AI agent touches your code, it leaves a trail across the sky.
+Every file becomes a star. Every import draws a constellation line. Hidden couplings -- files that always change together but share no import -- glow as teal threads you never knew existed. And when an AI agent touches your code, it leaves a trail across the sky.
 
-The goal is simple: **understand your project at a glance, and feel something while you do.**
+**Understand your project at a glance, and maybe feel something while you do.**
 
-If you've been staring at strings of text in a dark room for hours, maybe watching your code quietly glow and orbit can offer a moment of calm. Your project is alive. It's growing. And now you can see it.
+If you've been staring at strings of text in a dark room for hours, we hope watching your code quietly glow and orbit can offer a moment of calm. Your project is alive. It's growing. And now you can see it.
 
 ## Quick Start
 
@@ -172,9 +172,9 @@ STELLA_TARGET=./ npm run dev
 
 ## Feedback
 
-StellaCode is not accepting code contributions right now, but feedback is welcome.
+StellaCode is still young, and we'd love to hear what you think.
 
-- **Discord**: [Join the server](https://discord.gg/VGQJSda5eZ) -- bug reports, feature ideas, or just share your constellation
+- **Discord**: [Join the server](https://discord.gg/VGQJSda5eZ) -- share your constellation, tell us what's broken, or just say hi
 - **GitHub Issues**: open an issue if you prefer
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.

@@ -4,22 +4,19 @@
 
 **StellaCode** -- Code Observatory. Observe your codebase as a living constellation.
 
-## The Problem
+## Where This Comes From
 
-The age of vibe coding. One prompt and code appears. But:
+We live in an era where one prompt creates code. Files multiply, projects grow, and somewhere along the way you realize you're not quite sure what connects to what anymore. The AI changed things while you were thinking about something else. Files you've never seen keep breaking together.
 
-- You can't see what connects to what
-- You don't know which files the AI changed or how much
-- Files that always change together (hidden dependencies) are invisible
-- The bigger the project, the deeper this black box gets
+It's not anyone's fault. It's just hard to keep up.
 
-Existing tools show only a snapshot of the current state. Code isn't static -- it changes daily, evolves, and sometimes rots.
+We thought maybe it would help if you could simply look at your project -- not as lines of text, but as something you can take in at a glance. Something that breathes.
 
-## The Solution: Code Observatory
+## What a Code Observatory Is
 
-Static analysis shows you "now." Git analysis shows you "how we got here." Combine both, and you can see where the code is going.
+Static analysis shows you "now." Git analysis shows you "how we got here." Combine both, and you start to see where the code might be going.
 
-This doesn't fit neatly into existing categories (Visualizer, Static Analyzer, Observability Tool). It combines static analysis + temporal analysis (git) + real-time observation + AI agent awareness into a new category: **Code Observatory**.
+This doesn't fit neatly into existing categories. It's not quite a visualizer, not quite a static analyzer, not quite an observability tool. It brings together static analysis + temporal analysis (git) + real-time observation + AI agent awareness. We've been calling it a **Code Observatory**.
 
 ```
                   Temporal Analysis (git history)
@@ -55,20 +52,20 @@ This doesn't fit neatly into existing categories (Visualizer, Static Analyzer, O
 ## Principles
 
 ### Observe, don't just analyze
-Analysis finds answers. Observation discovers patterns. The goal is not to give users answers, but to make things visible.
+Analysis finds answers. Observation discovers patterns. We'd rather make things visible than tell you what to think.
 
 ### Time over snapshot
-The current state is only half the picture. Git history is the other half -- how the code got here and where it's heading.
+The current state is only half the picture. Git history is the other half -- how the code got here and where it might be heading.
 
 ### Discover, don't just search
-Search finds what you already know. Discovery reveals what you didn't. Co-change analysis is the prime example.
+Search finds what you already know. Discovery reveals what you didn't. Co-change analysis is a good example -- connections you wouldn't have thought to look for.
 
 ### Three-line start
 ```bash
 git clone <repo> && cd stellacode
 npm install && npm run dev
 ```
-Complex setup kills adoption.
+If getting started feels like a chore, people won't stay.
 
 ## Technical Decisions
 
@@ -103,9 +100,9 @@ Call a file a "node" and it becomes graph theory. Call it a "star" and it become
 
 ## Product Philosophy
 
-Not an analysis tool -- a code aquarium. Dealing with AI agents is already exhausting. StellaCode is something you watch while resting. Float your code universe on screen, gaze at it, and naturally notice: "why is that star red?"
+More like a code aquarium than an analysis tool. Working with AI agents all day is already tiring enough. StellaCode is something you can put on and just watch for a while. Float your code universe on screen, let your eyes wander, and maybe notice something you wouldn't have found by searching: "huh, why is that star red?"
 
-Experience over features. Visually beautiful comes before analytically useful.
+We care about how it feels before how much it does.
 
 ## Roadmap
 
@@ -142,6 +139,6 @@ Core experience is complete. What follows is driven by need.
 
 ## Long-Term Vision
 
-Every developer becomes an astronomer of their own code.
+We hope every developer can become a quiet astronomer of their own code.
 
-A codebase is like the universe. Too vast, constantly changing, impossible for one person to fully understand. But you can observe it. And that's not exhausting -- it's beautiful.
+A codebase is like the universe -- too vast, constantly changing, impossible for one person to fully understand. But you can observe it. And we'd like that to feel less like work and more like wonder.

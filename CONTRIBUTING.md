@@ -1,8 +1,8 @@
 # Contributing to StellaCode
 
-StellaCode is not accepting code contributions at this time. The codebase is maintained by a single developer to keep the vision focused and the architecture consistent.
+StellaCode is maintained by a single developer for now, so we're not accepting code contributions at this time.
 
-That said, **your feedback is the most valuable thing you can give this project.**
+But honestly, **hearing what you think matters more than any pull request.**
 
 ## How to Give Feedback
 
@@ -13,7 +13,7 @@ Join the StellaCode Discord: **[discord.gg/Mpvn4xEx](https://discord.gg/VGQJSda5
 Channels:
 - **#bug-reports** -- something broke or behaves unexpectedly
 - **#feature-requests** -- ideas for what StellaCode should do next
-- **#my-constellation** -- share a screenshot of your project's constellation
+- **#show-your-stars** -- share a screenshot of your project's constellation
 - **#general** -- questions, thoughts, anything else
 
 ### GitHub Issues
@@ -28,7 +28,7 @@ If you prefer GitHub, open an issue. Please include:
 
 Feedback is reviewed in batches. When fixes or features ship, they'll be announced in Discord's #announcements channel and in GitHub releases.
 
-Not every request will be implemented, but every one will be read.
+Not every request will become a feature, but every one will be read. We promise.
 
 ## Running StellaCode Locally
 
@@ -41,7 +41,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 and point it at any project on your machine.
+Open http://localhost:3001 and point it at any project on your machine.
 
 ```bash
 # Or set the target directly
