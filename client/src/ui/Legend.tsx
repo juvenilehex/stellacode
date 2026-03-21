@@ -1,4 +1,5 @@
 import { COLORS } from '../utils/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { useGraphStore } from '../store/graph-store';
 import { useSettingsStore } from '../store/settings-store';
 import type { FilterKey } from '../store/graph-store';
@@ -25,6 +26,7 @@ export function Legend() {
   const labelMode = useSettingsStore(s => s.labelMode);
   const cycleLabelMode = useSettingsStore(s => s.cycleLabelMode);
   const colors = useSettingsStore(s => s.colors);
+  const C = useThemeColors();
 
   // Map filter keys to custom colors
   const getColor = (item: typeof LEGEND_ITEMS[0]) => {
@@ -42,7 +44,7 @@ export function Legend() {
 
   return (
     <div className="flex items-center flex-wrap gap-x-3 gap-y-1 px-3 py-1.5 rounded-lg text-[11px] select-none pointer-events-auto"
-      style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}`, maxWidth: 'calc(100vw - 32px)' }}>
+      style={{ background: C.panelBg, border: `1px solid ${C.panelBorder}`, maxWidth: 'calc(100vw - 32px)' }}>
       {LEGEND_ITEMS.map(item => {
         const isHidden = hiddenFilters.has(item.key);
         const c = getColor(item);
@@ -65,7 +67,7 @@ export function Legend() {
             )}
             <span
               style={{
-                color: COLORS.textSecondary,
+                color: C.textSecondary,
                 textDecoration: isHidden ? 'line-through' : 'none',
               }}
             >
@@ -76,12 +78,12 @@ export function Legend() {
       })}
 
       {/* Divider */}
-      <div className="w-px h-3 mx-0.5" style={{ background: COLORS.panelBorder }} />
+      <div className="w-px h-3 mx-0.5" style={{ background: C.panelBorder }} />
 
       {/* Label mode toggle */}
       <button
         className="px-1.5 py-0.5 rounded-sm transition-colors hover:bg-white/5"
-        style={{ color: COLORS.textSecondary }}
+        style={{ color: C.textSecondary }}
         onClick={cycleLabelMode}
         title="Cycle label display: All / Selected / Off"
       >

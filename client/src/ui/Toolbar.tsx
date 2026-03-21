@@ -5,6 +5,7 @@ import { useGraphStore } from '../store/graph-store';
 import { useTimelineStore } from '../store/timeline-store';
 import { COLORS } from '../utils/colors';
 
+
 // --- Color Picker Mini (portal-based to escape overflow clipping) ---
 
 const PRESET_COLORS = [
@@ -423,6 +424,8 @@ export function Toolbar() {
   const setComplexityGlow = useSettingsStore(s => s.setComplexityGlow);
   const coChangePulse = useSettingsStore(s => s.coChangePulse);
   const setCoChangePulse = useSettingsStore(s => s.setCoChangePulse);
+  const theme = useSettingsStore(s => s.theme);
+  const setTheme = useSettingsStore(s => s.setTheme);
   const relayout = useGraphStore(s => s.relayout);
   const timelineMode = useTimelineStore(s => s.mode);
   const enterReplay = useTimelineStore(s => s.enterReplay);
@@ -561,6 +564,23 @@ export function Toolbar() {
           <ObserveRow />
         </div>
       </DropdownButton>
+
+      {/* Settings panel toggle (gear icon) */}
+      <button
+        className="px-1.5 py-1 rounded-sm transition-all duration-150"
+        style={{
+          background: panels.settings ? 'rgba(180,180,200,0.12)' : 'rgba(180,180,200,0.05)',
+          border: '0.5px solid rgba(180,180,200,0.10)',
+          color: panels.settings ? COLORS.textPrimary : COLORS.textSecondary,
+        }}
+        onClick={() => togglePanel('settings')}
+        title="Toggle Settings panel"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+      </button>
     </div>
   );
 }

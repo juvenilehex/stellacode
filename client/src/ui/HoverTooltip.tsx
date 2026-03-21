@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGraphStore } from '../store/graph-store';
 import { COLORS, getNodeColor } from '../utils/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 function formatRelativeTime(timestamp: number): string {
   const now = Date.now();
@@ -24,6 +25,7 @@ export function HoverTooltip() {
   const hoveredNodeId = useGraphStore(s => s.hoveredNodeId);
   const selectedNodeId = useGraphStore(s => s.selectedNodeId);
   const nodeMap = useGraphStore(s => s.nodeMap);
+  const C = useThemeColors();
   const [pointer, setPointer] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -63,8 +65,8 @@ export function HoverTooltip() {
       style={{
         left: x,
         top: y,
-        background: 'rgba(12, 12, 16, 0.92)',
-        border: `1px solid rgba(180, 180, 200, 0.15)`,
+        background: C.panelBg,
+        border: `1px solid ${C.panelBorder}`,
         backdropFilter: 'blur(8px)',
         maxWidth: tooltipWidth,
       }}
@@ -75,11 +77,11 @@ export function HoverTooltip() {
           className="w-1.5 h-1.5 rounded-full shrink-0"
           style={{ background: color, boxShadow: `0 0 4px ${color}` }}
         />
-        <span className="font-medium truncate" style={{ color: COLORS.textPrimary }}>
+        <span className="font-medium truncate" style={{ color: C.textPrimary }}>
           {node.label}
         </span>
         {node.language && (
-          <span className="ml-auto shrink-0" style={{ color: COLORS.textSecondary, fontSize: '10px' }}>
+          <span className="ml-auto shrink-0" style={{ color: C.textSecondary, fontSize: '10px' }}>
             {node.language}
           </span>
         )}
@@ -88,13 +90,13 @@ export function HoverTooltip() {
       {/* Path */}
       <div
         className="truncate mb-1.5"
-        style={{ color: COLORS.textSecondary, fontSize: '10px' }}
+        style={{ color: C.textSecondary, fontSize: '10px' }}
       >
         {filePath}
       </div>
 
       {/* Git info row */}
-      <div className="flex items-center gap-3" style={{ color: COLORS.textSecondary }}>
+      <div className="flex items-center gap-3" style={{ color: C.textSecondary }}>
         {lastModified && (
           <span>{formatRelativeTime(lastModified)}</span>
         )}

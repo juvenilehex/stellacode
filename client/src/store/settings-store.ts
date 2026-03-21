@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { COLORS } from '../utils/colors';
+import { type ThemeId, getTheme, type Theme } from '../utils/themes';
 
 /** Which UI panels are visible */
 export interface UIPanelVisibility {
@@ -10,6 +11,7 @@ export interface UIPanelVisibility {
   gitPanel: boolean;
   nodeDetail: boolean;
   breadcrumb: boolean;
+  settings: boolean;
 }
 
 /** Customizable colors keyed by legend/node type */
@@ -60,6 +62,11 @@ interface SettingsState {
   coChangePulse: boolean;
   /** Complexity glow intensity (0-100). 0 = disabled. */
   complexityGlow: number;
+  /** Scan limits — guidance values for server configuration */
+  scanMaxFiles: number;
+  scanMaxDepth: number;
+  /** Active theme */
+  theme: ThemeId;
 
   togglePanel: (key: keyof UIPanelVisibility) => void;
   setColorMode: (mode: 'language' | 'age' | 'agent') => void;
@@ -75,6 +82,11 @@ interface SettingsState {
   cycleLabelMode: () => void;
   setObserveMode: (on: boolean) => void;
   setDirCohesion: (value: number) => void;
+  setScanMaxFiles: (value: number) => void;
+  setScanMaxDepth: (value: number) => void;
+  setTheme: (id: ThemeId) => void;
+  /** Convenience: get the resolved theme config */
+  getThemeConfig: () => Theme;
 }
 
 const DEFAULT_COLORS: CustomColors = {
@@ -90,7 +102,7 @@ const DEFAULT_COLORS: CustomColors = {
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       panels: {
         legend: true,
         activity: true,
@@ -98,6 +110,7 @@ export const useSettingsStore = create<SettingsState>()(
         gitPanel: true,
         nodeDetail: true,
         breadcrumb: true,
+        settings: false,
       },
       colors: { ...DEFAULT_COLORS },
       edgeStyles: {
@@ -121,6 +134,9 @@ export const useSettingsStore = create<SettingsState>()(
       colorMode: 'language' as const,
       coChangePulse: true,
       complexityGlow: 50,
+      scanMaxFiles: 10000,
+      scanMaxDepth: 30,
+      theme: 'deep-space' as ThemeId,
 
       togglePanel: (key) => set((s) => ({
         panels: { ...s.panels, [key]: !s.panels[key] },
@@ -173,6 +189,10 @@ export const useSettingsStore = create<SettingsState>()(
       setColorMode: (mode) => set({ colorMode: mode }),
       setCoChangePulse: (on) => set({ coChangePulse: on }),
       setComplexityGlow: (value) => set({ complexityGlow: Math.max(0, Math.min(100, value)) }),
+      setScanMaxFiles: (value) => set({ scanMaxFiles: Math.max(1000, Math.min(100000, value)) }),
+      setScanMaxDepth: (value) => set({ scanMaxDepth: Math.max(5, Math.min(100, value)) }),
+      setTheme: (id) => set({ theme: id }),
+      getThemeConfig: (): Theme => getTheme(get().theme),
     }),
     { name: 'stellacode-settings' },
   ),

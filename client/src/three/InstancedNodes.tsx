@@ -8,6 +8,7 @@ import { useAgentStore } from '../store/agent-store';
 import { useSettingsStore } from '../store/settings-store';
 import { getNodeColor, getNodeFilterKey, getNodeAgeColor, getNodeAgentColor, getComplexityFactor, COLORS } from '../utils/colors';
 import type { NodeStyleKey } from '../store/settings-store';
+import { getTheme } from '../utils/themes';
 
 const _dummy = new THREE.Object3D();
 const _color = new THREE.Color();
@@ -58,6 +59,8 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
   const customColors = useSettingsStore(s => s.colors);
   const colorMode = useSettingsStore(s => s.colorMode);
   const complexityGlow = useSettingsStore(s => s.complexityGlow);
+  const themeId = useSettingsStore(s => s.theme);
+  const themeScene = getTheme(themeId).scene;
   const entryProgress = useGraphStore(s => s.entryProgress);
   const entryActive = useGraphStore(s => s.entryActive);
   const allNodes = useGraphStore(s => s.data?.nodes);
@@ -239,7 +242,7 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
       <meshStandardMaterial
         color="#ffffff"
         emissive="#ffffff"
-        emissiveIntensity={0.25}
+        emissiveIntensity={0.25 + themeScene.nodeEmissiveBoost}
         roughness={0.5}
         metalness={0.15}
         transparent
@@ -258,6 +261,9 @@ function OverlayLabel() {
   const getNode = useGraphStore(s => s.getNode);
   const labelMode = useSettingsStore(s => s.labelMode);
   const fontSize = useSettingsStore(s => s.fontSize);
+  const themeId = useSettingsStore(s => s.theme);
+  const themeScene = getTheme(themeId).scene;
+  const themeBg = getTheme(themeId).colors.bg;
 
   if (labelMode === 'off' || lodLevel === 'project') return null;
 
@@ -274,11 +280,11 @@ function OverlayLabel() {
         <Text
           position={[0, baseScale * 2.5, 0]}
           fontSize={0.15 + fontSize * 0.01}
-          color="#E8E0FF"
+          color={themeScene.nodeEmissiveBoost > 0 ? '#FFFFFF' : '#E8E0FF'}
           anchorX="center"
           anchorY="bottom"
-          outlineWidth={0.02}
-          outlineColor={COLORS.bg}
+          outlineWidth={0.02 * themeScene.labelOutlineMultiplier}
+          outlineColor={themeBg}
         >
           {node.label}
         </Text>

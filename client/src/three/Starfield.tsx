@@ -2,15 +2,22 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { COLORS } from '../utils/colors';
+import { useSettingsStore } from '../store/settings-store';
+import { getTheme } from '../utils/themes';
 
 /** 3-layer star background + nebula clouds + shooting stars */
 export function Starfield() {
+  const themeId = useSettingsStore(s => s.theme);
+  const theme = getTheme(themeId);
+  const tc = theme.colors;
+  const om = theme.scene.starOpacityMultiplier;
+
   return (
     <>
-      <StarLayer count={2500} spread={180} size={0.03} color={COLORS.starPrimary} opacity={0.45} speed={0.0001} />
-      <StarLayer count={800} spread={120} size={0.055} color={COLORS.starSecondary} opacity={0.14} speed={0.0002} />
-      <StarLayer count={500} spread={90} size={0.07} color={COLORS.starTertiary} opacity={0.10} speed={0.00015} />
-      <StarLayer count={200} spread={140} size={0.10} color="#C8B8D8" opacity={0.06} speed={0.00008} />
+      <StarLayer count={2500} spread={180} size={0.03} color={tc.starPrimary} opacity={0.45 * om} speed={0.0001} />
+      <StarLayer count={800} spread={120} size={0.055} color={tc.starSecondary} opacity={0.14 * om} speed={0.0002} />
+      <StarLayer count={500} spread={90} size={0.07} color={tc.starTertiary} opacity={0.10 * om} speed={0.00015} />
+      <StarLayer count={200} spread={140} size={0.10} color="#C8B8D8" opacity={0.06 * om} speed={0.00008} />
       <NebulaClouds />
       <ShootingStars />
     </>

@@ -158,6 +158,11 @@ const AGENT_TERRITORY_COLORS: Record<string, string> = {
   'aider': '#FFD866',
   'codeium': '#C7A4FF',
   'tabnine': '#FF8E6B',
+  'windsurf': '#4DCFB5',
+  'devin': '#E88AB8',
+  'amazon-q': '#FF9E64',
+  'gemini': '#6BB8FF',
+  'bolt': '#FFE066',
 };
 const HUMAN_COLOR = '#E8E0FF';    // neutral lavender for human-only files
 const MIXED_COLOR = '#B098D0';    // muted purple for mixed authorship
@@ -183,10 +188,7 @@ export function getNodeAgentColor(meta: Record<string, unknown> | undefined): st
 
 export function getAgentColor(agent: string): string {
   const lower = agent.toLowerCase();
-  if (lower.includes('claude')) return COLORS.agentClaude;
-  if (lower.includes('copilot')) return COLORS.agentCopilot;
-  if (lower.includes('cursor')) return COLORS.agentCursor;
-  return COLORS.agentUnknown;
+  return AGENT_TERRITORY_COLORS[lower] ?? COLORS.agentUnknown;
 }
 
 export function getCommitTypeColor(type: string): string {

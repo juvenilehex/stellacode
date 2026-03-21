@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { COLORS } from '../utils/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { useGraphStore } from '../store/graph-store';
 
 type Phase = 'idle' | 'connecting' | 'connected' | 'done';
@@ -120,6 +121,7 @@ interface Star {
 // --- Main ConnectScreen ---
 
 export function ConnectScreen({ onConnected }: ConnectScreenProps) {
+  const C = useThemeColors();
   const [phase, setPhase] = useState<Phase>('idle');
   const [targetPath, setTargetPath] = useState('');
   const [error, setError] = useState('');
@@ -186,7 +188,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
     <div
       className="fixed inset-0 z-50 flex flex-col items-center justify-center transition-opacity duration-1000"
       style={{
-        background: COLORS.bg,
+        background: C.bg,
         opacity: isDone ? 0 : 1,
         pointerEvents: isDone ? 'none' : 'auto',
       }}
@@ -210,7 +212,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
         >
           <h1
             className="text-3xl font-extralight tracking-[0.4em] stella-title"
-            style={{ color: COLORS.textPrimary }}
+            style={{ color: C.textPrimary }}
           >
             STELLA CODE
           </h1>
@@ -226,7 +228,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
         >
           <p
             className="text-[11px] tracking-[0.25em] font-light"
-            style={{ color: COLORS.textSecondary }}
+            style={{ color: C.textSecondary }}
           >
             CODE OBSERVATORY
           </p>
@@ -242,7 +244,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
         >
           <label
             className="block text-[10px] tracking-[0.2em] uppercase mb-2"
-            style={{ color: COLORS.textSecondary }}
+            style={{ color: C.textSecondary }}
           >
             Target Directory
           </label>
@@ -258,7 +260,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
             style={{
               background: 'rgba(180, 180, 200, 0.03)',
               borderColor: error ? '#FF8EC8' : 'rgba(180, 180, 200, 0.15)',
-              color: COLORS.textPrimary,
+              color: C.textPrimary,
               fontFamily: 'monospace',
             }}
           />
@@ -271,7 +273,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
                 onClick={handleConnect}
                 className="px-6 py-1.5 text-xs tracking-[0.2em] uppercase transition-all duration-300"
                 style={{
-                  color: COLORS.textPrimary,
+                  color: C.textPrimary,
                   background: 'rgba(180, 180, 200, 0.06)',
                   border: '1px solid rgba(180, 180, 200, 0.18)',
                   opacity: targetPath.trim() ? 1 : 0,
@@ -287,7 +289,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
             {!isIdle && statusText && (
               <p
                 className="text-xs tracking-[0.1em] animate-fade-in"
-                style={{ color: phase === 'connected' ? '#7EDCCC' : COLORS.textSecondary }}
+                style={{ color: phase === 'connected' ? '#7EDCCC' : C.textSecondary }}
               >
                 {phase === 'connecting' && (
                   <span className="inline-block animate-pulse mr-2">&#x25CF;</span>

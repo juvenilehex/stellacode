@@ -26,6 +26,9 @@ screenshots/*
 # Client debug screenshots
 client/screenshots/
 
+# Internal docs (not published)
+.internal/
+
 # IDE / OS junk
 .idea/
 .vscode/

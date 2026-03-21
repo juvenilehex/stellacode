@@ -2,6 +2,9 @@
 
 **Code Observatory** -- observe your codebase as a living constellation.
 
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/VGQJSda5eZ)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ![StellaCode constellation view](screenshots/03-constellation-view.png)
 
 ## Why
@@ -19,19 +22,22 @@ If you've been staring at strings of text in a dark room for hours, maybe watchi
 ## Quick Start
 
 ```bash
+npx stellacode
+```
+
+Or clone and run locally:
+
+```bash
 git clone https://github.com/juvenilehex/stellacode.git
 cd stellacode
 npm install
 npm run dev
 ```
 
-Open http://localhost:5173 and enter the path to any project. Or:
+Open http://localhost:3001 and enter the path to any project.
 
-```bash
-STELLA_TARGET=/path/to/your/project npm run dev
-```
-
-Three commands. That's it.
+![StellaCode start screen](screenshots/stellacode-start.png)
+*The landing screen — enter a path and watch your code come alive.*
 
 ## What You See
 
@@ -50,6 +56,7 @@ Three commands. That's it.
 - 3D force-directed graph with golden ratio spiral layout
 - Files as stars, directories as diamonds, imports as constellation lines
 - Language detection (TypeScript, JavaScript, Python) with color coding
+  > Currently supports TypeScript, JavaScript, and Python. Want another language? [Let us know on Discord.](https://discord.gg/VGQJSda5eZ)
 - Search, filter by language, click to inspect
 
 ### Git Intelligence
@@ -60,7 +67,7 @@ Three commands. That's it.
 - **Branch status** -- current branch, clean/dirty state
 
 ### AI Agent Tracking
-- Detects commits from Claude Code, Copilot, Cursor, Aider, Codeium, and Tabnine
+- Detects commits from Claude Code, Copilot, Cursor, Aider, Codeium, Tabnine, Windsurf, Devin, Amazon Q, Gemini, and Bolt
 - Agent trails show which areas each AI has touched
 - See the boundary between human and machine work
 

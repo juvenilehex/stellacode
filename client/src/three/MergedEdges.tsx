@@ -5,6 +5,7 @@ import type { GraphEdge, GraphNode } from '../types/graph';
 import { useGraphStore } from '../store/graph-store';
 import { useSettingsStore } from '../store/settings-store';
 import { getEdgeColor } from '../utils/colors';
+import { getTheme } from '../utils/themes';
 
 /**
  * High-performance merged edge rendering.
@@ -23,6 +24,8 @@ export function MergedEdges({ edges, nodeMap }: {
   const edgeStyles = useSettingsStore(s => s.edgeStyles);
   const customColors = useSettingsStore(s => s.colors);
   const coChangePulse = useSettingsStore(s => s.coChangePulse);
+  const themeId = useSettingsStore(s => s.theme);
+  const edgeBrightMult = getTheme(themeId).scene.edgeBrightnessMultiplier;
   const timelineVisibleIds = useGraphStore(s => s.timelineVisibleIds);
 
   // Group edges by visual type for separate materials
@@ -79,6 +82,7 @@ export function MergedEdges({ edges, nodeMap }: {
         highlightOpacity={Math.min(1, impStyle.opacity / 100 + 0.4)}
         lineWidth={impStyle.weight}
         selectedNodeId={selectedNodeId}
+        brightnessMult={edgeBrightMult}
       />
       {/* Circular dependency edges — red tint */}
       <EdgeBatch
@@ -89,6 +93,7 @@ export function MergedEdges({ edges, nodeMap }: {
         highlightOpacity={Math.min(1, impStyle.opacity / 100 + 0.5)}
         lineWidth={impStyle.weight}
         selectedNodeId={selectedNodeId}
+        brightnessMult={edgeBrightMult}
       />
       <EdgeBatch
         edges={dirEdges}
@@ -98,6 +103,7 @@ export function MergedEdges({ edges, nodeMap }: {
         highlightOpacity={Math.min(1, dirStyle.opacity / 100 + 0.4)}
         lineWidth={dirStyle.weight}
         selectedNodeId={selectedNodeId}
+        brightnessMult={edgeBrightMult}
       />
       {coChangePulse ? (
         <PulsingCoChangeEdges
@@ -108,6 +114,7 @@ export function MergedEdges({ edges, nodeMap }: {
           highlightOpacity={Math.min(1, coStyle.opacity / 100 + 0.4)}
           lineWidth={coStyle.weight}
           selectedNodeId={selectedNodeId}
+          brightnessMult={edgeBrightMult}
         />
       ) : (
         <EdgeBatch
@@ -119,13 +126,14 @@ export function MergedEdges({ edges, nodeMap }: {
           lineWidth={coStyle.weight}
           selectedNodeId={selectedNodeId}
           dashed
+          brightnessMult={edgeBrightMult}
         />
       )}
     </>
   );
 }
 
-function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth = 1, selectedNodeId, dashed }: {
+function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth = 1, selectedNodeId, dashed, brightnessMult = 1 }: {
   edges: GraphEdge[];
   nodeMap: Map<string, GraphNode>;
   color: string;
@@ -134,6 +142,7 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
   lineWidth?: number;
   selectedNodeId: string | null;
   dashed?: boolean;
+  brightnessMult?: number;
 }) {
   const { positions, colors } = useMemo(() => {
     const posArr: number[] = [];
@@ -154,7 +163,7 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
       const alpha = isDimmed ? 0.03 : isHighlighted ? highlightOpacity : baseOpacity;
 
       // Scale color by alpha for additive blending; weight boosts brightness
-      const brightness = alpha * (0.6 + lineWidth * 0.4);
+      const brightness = alpha * (0.6 + lineWidth * 0.4) * brightnessMult;
       const r = c.r * brightness;
       const g = c.g * brightness;
       const b = c.b * brightness;
@@ -186,7 +195,7 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
       positions: new Float32Array(posArr),
       colors: new Float32Array(colArr),
     };
-  }, [edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth, selectedNodeId, dashed]);
+  }, [edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth, selectedNodeId, dashed, brightnessMult]);
 
   if (positions.length === 0) return null;
 
@@ -209,7 +218,7 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
 }
 
 /** Pulsing co-change edges: animates color brightness with sine wave */
-function PulsingCoChangeEdges({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth = 1, selectedNodeId }: {
+function PulsingCoChangeEdges({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth = 1, selectedNodeId, brightnessMult = 1 }: {
   edges: GraphEdge[];
   nodeMap: Map<string, GraphNode>;
   color: string;
@@ -217,6 +226,7 @@ function PulsingCoChangeEdges({ edges, nodeMap, color, baseOpacity, highlightOpa
   highlightOpacity: number;
   lineWidth?: number;
   selectedNodeId: string | null;
+  brightnessMult?: number;
 }) {
   const colorAttrRef = useRef<THREE.BufferAttribute>(null);
 
@@ -237,7 +247,7 @@ function PulsingCoChangeEdges({ edges, nodeMap, color, baseOpacity, highlightOpa
       const isDimmed = selectedNodeId !== null && !isHighlighted;
       const c = isDimmed ? dimColor : baseColor;
       const alpha = isDimmed ? 0.03 : isHighlighted ? highlightOpacity : baseOpacity;
-      const brightness = alpha * (0.6 + lineWidth * 0.4);
+      const brightness = alpha * (0.6 + lineWidth * 0.4) * brightnessMult;
 
       const dx = target.x - source.x;
       const dy = target.y - source.y;
@@ -270,7 +280,7 @@ function PulsingCoChangeEdges({ edges, nodeMap, color, baseOpacity, highlightOpa
       baseColors: new Float32Array(colArr),
       edgeRanges: ranges,
     };
-  }, [edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth, selectedNodeId]);
+  }, [edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth, selectedNodeId, brightnessMult]);
 
   // Animate color brightness per edge
   useFrame(({ clock }) => {

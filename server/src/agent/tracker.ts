@@ -37,6 +37,11 @@ const AGENT_PATTERNS = [
   { pattern: /aider/i, name: 'aider' },
   { pattern: /codeium/i, name: 'codeium' },
   { pattern: /tabnine/i, name: 'tabnine' },
+  { pattern: /windsurf|cascade/i, name: 'windsurf' },
+  { pattern: /devin-ai|devin/i, name: 'devin' },
+  { pattern: /amazon\s*q|aws-q/i, name: 'amazon-q' },
+  { pattern: /gemini/i, name: 'gemini' },
+  { pattern: /\bbolt\b|stackblitz/i, name: 'bolt' },
 ];
 
 function detectAgent(author: string, message: string): { isAgent: boolean; agentName?: string } {
@@ -57,7 +62,7 @@ function detectAgent(author: string, message: string): { isAgent: boolean; agent
 
 function git(cmd: string, cwd: string): string {
   // Reject shell metacharacters to prevent command injection
-  if (/[;&|`$(){}]/.test(cmd)) {
+  if (/[;&|`${}]/.test(cmd)) {
     console.error('[Git] Rejected command with shell metacharacters:', cmd);
     return '';
   }
@@ -186,11 +191,11 @@ export class AgentTracker {
   getBranches(): GitBranch[] {
     if (!this.isGit) return [];
 
-    const raw = git('branch -a --format="%(refname:short)|%(HEAD)|%(objectname:short)|%(creatordate:unix)"', this.rootDir);
+    const raw = git('branch -a --format="%(refname:short)\t%(HEAD)\t%(objectname:short)\t%(creatordate:unix)"', this.rootDir);
     if (!raw) return [];
 
     return raw.split('\n').filter(Boolean).map(line => {
-      const [name, head, hash, time] = line.split('|');
+      const [name, head, hash, time] = line.split('\t');
       return {
         name,
         isCurrent: head === '*',

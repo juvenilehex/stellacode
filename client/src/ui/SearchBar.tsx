@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useGraphStore } from '../store/graph-store';
 import { COLORS, getNodeColor } from '../utils/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 export function SearchBar() {
   const [query, setQuery] = useState('');
@@ -8,6 +9,7 @@ export function SearchBar() {
   const blurTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const data = useGraphStore(s => s.data);
   const selectNode = useGraphStore(s => s.selectNode);
+  const C = useThemeColors();
 
   useEffect(() => {
     return () => { if (blurTimer.current) clearTimeout(blurTimer.current); };
@@ -39,15 +41,15 @@ export function SearchBar() {
           placeholder="Search files..."
           className="w-64 px-3 py-1.5 rounded-md text-xs outline-none"
           style={{
-            background: COLORS.panelBg,
-            border: `1px solid ${COLORS.panelBorder}`,
-            color: COLORS.textPrimary,
+            background: C.panelBg,
+            border: `1px solid ${C.panelBorder}`,
+            color: C.textPrimary,
           }}
         />
 
         {open && results.length > 0 && (
           <div className="absolute top-full mt-1 w-full rounded-md overflow-hidden text-xs"
-            style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}` }}>
+            style={{ background: C.panelBg, border: `1px solid ${C.panelBorder}` }}>
             {results.map(node => (
               <button
                 key={node.id}
@@ -56,10 +58,10 @@ export function SearchBar() {
               >
                 <div className="w-1.5 h-1.5 rounded-full shrink-0"
                   style={{ background: getNodeColor(node.type, node.language) }} />
-                <span className="truncate" style={{ color: COLORS.textPrimary }}>
+                <span className="truncate" style={{ color: C.textPrimary }}>
                   {node.label}
                 </span>
-                <span className="ml-auto truncate" style={{ color: COLORS.textSecondary, fontSize: '9px' }}>
+                <span className="ml-auto truncate" style={{ color: C.textSecondary, fontSize: '9px' }}>
                   {node.id.replace(/^(file:|dir:)/, '').split('/').slice(0, -1).join('/')}
                 </span>
               </button>

@@ -1,5 +1,6 @@
 import { useGraphStore } from '../store/graph-store';
 import { COLORS, getNodeColor } from '../utils/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 interface SymbolInfo {
   name: string;
@@ -13,6 +14,7 @@ export function NodeDetail() {
   const nodeMap = useGraphStore(s => s.nodeMap);
   const selectNode = useGraphStore(s => s.selectNode);
   const connectedNodeIds = useGraphStore(s => s.connectedNodeIds);
+  const C = useThemeColors();
 
   if (!selectedNodeId) return null;
 
@@ -29,42 +31,42 @@ export function NodeDetail() {
 
   return (
     <div className="w-72 max-h-[80vh] overflow-y-auto rounded-lg text-xs select-none pointer-events-auto"
-      style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}` }}>
+      style={{ background: C.panelBg, border: `1px solid ${C.panelBorder}` }}>
       {/* Header */}
       <div className="px-3 py-2 flex items-center justify-between"
-        style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
+        style={{ borderBottom: `1px solid ${C.panelBorder}` }}>
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-          <span className="font-medium truncate" style={{ color: COLORS.textPrimary }}>
+          <span className="font-medium truncate" style={{ color: C.textPrimary }}>
             {node.label}
           </span>
         </div>
         <button
           onClick={() => selectNode(null)}
           className="text-sm px-1 hover:opacity-70 shrink-0"
-          style={{ color: COLORS.textSecondary }}
+          style={{ color: C.textSecondary }}
         >
           x
         </button>
       </div>
 
       {/* File info */}
-      <div className="px-3 py-2 space-y-1" style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-        <div style={{ color: COLORS.textSecondary }} className="break-all">
+      <div className="px-3 py-2 space-y-1" style={{ borderBottom: `1px solid ${C.panelBorder}` }}>
+        <div style={{ color: C.textSecondary }} className="break-all">
           {node.id.replace(/^(file:|dir:)/, '')}
         </div>
         <div className="flex gap-3">
           {node.type === 'file' && (
             <>
-              <span style={{ color: COLORS.textSecondary }}>
+              <span style={{ color: C.textSecondary }}>
                 {node.lineCount} lines
               </span>
-              <span style={{ color: COLORS.textSecondary }}>
+              <span style={{ color: C.textSecondary }}>
                 {node.language}
               </span>
             </>
           )}
-          <span style={{ color: COLORS.textSecondary }}>
+          <span style={{ color: C.textSecondary }}>
             {node.degree} connections
           </span>
         </div>
@@ -72,18 +74,18 @@ export function NodeDetail() {
 
       {/* Symbols */}
       {symbols.length > 0 && (
-        <div className="px-3 py-2" style={{ borderBottom: `1px solid ${COLORS.panelBorder}` }}>
-          <div className="mb-1" style={{ color: COLORS.textSecondary }}>
+        <div className="px-3 py-2" style={{ borderBottom: `1px solid ${C.panelBorder}` }}>
+          <div className="mb-1" style={{ color: C.textSecondary }}>
             Symbols ({symbols.length})
           </div>
           <div className="space-y-0.5 max-h-40 overflow-y-auto">
             {symbols.map((sym, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <SymbolIcon kind={sym.kind} />
-                <span style={{ color: sym.exported ? COLORS.textPrimary : COLORS.textSecondary }}>
+                <span style={{ color: sym.exported ? C.textPrimary : C.textSecondary }}>
                   {sym.name}
                 </span>
-                <span className="ml-auto font-mono" style={{ color: COLORS.textSecondary, fontSize: '9px' }}>
+                <span className="ml-auto font-mono" style={{ color: C.textSecondary, fontSize: '9px' }}>
                   :{sym.line}
                 </span>
               </div>
@@ -95,7 +97,7 @@ export function NodeDetail() {
       {/* Connected nodes */}
       {connectedNodes.length > 0 && (
         <div className="px-3 py-2">
-          <div className="mb-1" style={{ color: COLORS.textSecondary }}>
+          <div className="mb-1" style={{ color: C.textSecondary }}>
             Connected ({connectedNodes.length})
           </div>
           <div className="space-y-0.5 max-h-32 overflow-y-auto">
@@ -107,7 +109,7 @@ export function NodeDetail() {
               >
                 <div className="w-1.5 h-1.5 rounded-full shrink-0"
                   style={{ background: getNodeColor(cn.type, cn.language) }} />
-                <span className="truncate" style={{ color: COLORS.textPrimary }}>
+                <span className="truncate" style={{ color: C.textPrimary }}>
                   {cn.label}
                 </span>
               </button>

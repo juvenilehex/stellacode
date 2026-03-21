@@ -65,3 +65,31 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(180, 180, 200, 0.35);
 }
+
+/* ── Theme: CSS custom properties ── */
+
+:root {
+  --sc-text-primary: rgba(255, 255, 255, 0.92);
+  --sc-text-secondary: rgba(255, 255, 255, 0.52);
+  --sc-panel-bg: rgba(14, 14, 16, 0.94);
+  --sc-panel-border: rgba(255, 255, 255, 0.07);
+  --sc-bg: #0C0C10;
+}
+
+/* ── High Contrast theme overrides ── */
+
+[data-theme="high-contrast"] .stella-title {
+  text-shadow:
+    0 0 10px rgba(255, 255, 255, 0.6),
+    0 0 28px rgba(255, 255, 255, 0.4),
+    0 0 60px rgba(220, 220, 255, 0.25),
+    0 0 120px rgba(220, 220, 255, 0.15);
+}
+
+[data-theme="high-contrast"] ::-webkit-scrollbar-thumb {
+  background: rgba(200, 200, 220, 0.35);
+}
+
+[data-theme="high-contrast"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(200, 200, 220, 0.55);
+}

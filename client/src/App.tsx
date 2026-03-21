@@ -12,6 +12,8 @@ import { Toolbar } from './ui/Toolbar';
 import { TimelineSlider } from './ui/TimelineSlider';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { DraggablePanel } from './ui/DraggablePanel';
+import { SettingsPanel } from './ui/SettingsPanel';
+import { ThemeProvider } from './ui/ThemeProvider';
 import { useGraphData } from './hooks/useGraphData';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useGraphStore } from './store/graph-store';
@@ -21,9 +23,12 @@ import { useTimelineStore } from './store/timeline-store';
 export default function App() {
   const [connected, setConnected] = useState(false);
 
-  if (connected) return <Observatory />;
-
-  return <ConnectScreen onConnected={() => setConnected(true)} />;
+  return (
+    <>
+      <ThemeProvider />
+      {connected ? <Observatory /> : <ConnectScreen onConnected={() => setConnected(true)} />}
+    </>
+  );
 }
 
 function Observatory() {
@@ -156,6 +161,13 @@ function Observatory() {
           minHeight={80}
         >
           <AgentPanel />
+        </DraggablePanel>
+
+        <DraggablePanel
+          visible={panels.settings}
+          defaultStyle={{ top: 48, right: 280 }}
+        >
+          <SettingsPanel />
         </DraggablePanel>
 
         <HoverTooltip />

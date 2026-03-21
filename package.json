@@ -1,17 +1,34 @@
 {
   "name": "stellacode",
   "version": "1.1.0",
-  "private": true,
   "description": "Code Observatory — observe your codebase as a living constellation",
+  "type": "module",
+  "bin": {
+    "stellacode": "./bin/stellacode.js"
+  },
+  "files": [
+    "bin/",
+    "server/dist/",
+    "!server/dist/__tests__/",
+    "client/dist/"
+  ],
   "workspaces": [
     "server",
     "client"
   ],
   "scripts": {
-    "dev": "concurrently -k -n server,client -c blue,green \"npm run dev -w server -- --target ${STELLA_TARGET:-.}\" \"npm run dev -w client\"",
+    "dev": "concurrently -k -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w server && npm run build -w client",
+    "prepublishOnly": "npm run build",
     "test": "npm run test -w server",
     "lint": "npm run lint -w server && npm run lint -w client"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.0.1",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
@@ -21,5 +38,16 @@
   "engines": {
     "node": ">=20.0.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/juvenilehex/stellacode"
+  },
+  "keywords": [
+    "code-visualization",
+    "codebase",
+    "constellation",
+    "observatory",
+    "developer-tools"
+  ]
 }

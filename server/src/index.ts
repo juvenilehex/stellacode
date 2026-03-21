@@ -3,6 +3,7 @@ import cors from 'cors';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseProject } from './parser/index.js';
 import { buildGraph } from './graph/builder.js';
 import { computeLayout } from './graph/layout.js';
@@ -64,6 +65,9 @@ const ALLOWED_ORIGINS = [
   'http://localhost:5173',   // Vite dev server
   'http://127.0.0.1:5173',
   `http://127.0.0.1:${PORT}`,
+  ...(process.env.STELLA_CORS_ORIGINS
+    ? process.env.STELLA_CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+    : []),
 ];
 
 app.use(cors({
@@ -88,6 +92,14 @@ app.use((_req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   next();
 });
+
+// ── Serve client static files in production ──
+const __serverDir = path.dirname(fileURLToPath(import.meta.url));
+const clientDistPath = path.resolve(__serverDir, '..', '..', 'client', 'dist');
+if (fs.existsSync(clientDistPath) && fs.statSync(clientDistPath).isDirectory()) {
+  console.log(`[StellaCode] Serving client from ${clientDistPath}`);
+  app.use(express.static(clientDistPath));
+}
 
 // API routes
 app.get('/api/graph', (_req, res) => {
@@ -248,6 +260,19 @@ function onFileChange(event: { type: string; relativePath: string; filePath: str
 }
 
 let activeWatcher = createWatcher(targetDir, onFileChange);
+
+// ── SPA fallback: serve index.html for non-API routes in production ──
+const indexHtmlPath = path.join(clientDistPath, 'index.html');
+if (fs.existsSync(indexHtmlPath)) {
+  app.use((req, res, next) => {
+    // Only handle GET requests for non-API, non-WS paths
+    if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.startsWith('/ws')) {
+      res.sendFile(indexHtmlPath);
+    } else {
+      next();
+    }
+  });
+}
 
 // Global error handler — catch unhandled route errors
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

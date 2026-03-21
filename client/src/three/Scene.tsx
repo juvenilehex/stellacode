@@ -14,6 +14,7 @@ import { LODController } from './LODController';
 import { COLORS } from '../utils/colors';
 import { useSettingsStore } from '../store/settings-store';
 import { useTimelineStore } from '../store/timeline-store';
+import { getTheme } from '../utils/themes';
 
 declare global {
   interface Window {
@@ -126,13 +127,17 @@ function CameraControls({ maxDist }: { maxDist: number }) {
 function BloomEffect() {
   const bloomIntensity = useSettingsStore(s => s.bloomIntensity);
   const observeMode = useSettingsStore(s => s.observeMode);
-  const base = (bloomIntensity / 100) * 1.2;
+  const themeId = useSettingsStore(s => s.theme);
+  const themeScene = getTheme(themeId).scene;
+  const base = (bloomIntensity / 100) * 1.2 * themeScene.bloomMultiplier;
   const intensity = observeMode ? Math.max(base, 0.9) : base;
+  // High contrast lowers the luminance threshold so more elements glow
+  const threshold = observeMode ? 0.7 : COLORS.bloomThreshold / themeScene.bloomMultiplier;
   return (
     <EffectComposer>
       <Bloom
         intensity={intensity}
-        luminanceThreshold={observeMode ? 0.7 : COLORS.bloomThreshold}
+        luminanceThreshold={Math.max(0.3, threshold)}
         luminanceSmoothing={COLORS.bloomRadius}
         mipmapBlur
       />
@@ -202,6 +207,9 @@ function FPSOverlay() {
 }
 
 export function Scene() {
+  const themeId = useSettingsStore(s => s.theme);
+  const themeColors = getTheme(themeId).colors;
+
   return (
     <>
     <FPSOverlay />
@@ -214,10 +222,10 @@ export function Scene() {
         toneMappingExposure: 1.0,
         preserveDrawingBuffer: true,
       }}
-      style={{ background: `radial-gradient(ellipse at 50% 50%, #14121c 0%, #0f0d16 30%, #0b0a10 60%, ${COLORS.bg} 90%)` }}
+      style={{ background: `radial-gradient(ellipse at 50% 50%, #14121c 0%, #0f0d16 30%, #0b0a10 60%, ${themeColors.bg} 90%)` }}
       onPointerMissed={() => useGraphStore.getState().selectNode(null)}
     >
-      <fog attach="fog" args={[COLORS.bgFog, 250, 550]} />
+      <fog attach="fog" args={[themeColors.bgFog, 250, 550]} />
       <SceneContent />
       <BloomEffect />
       <FPSMonitor />
