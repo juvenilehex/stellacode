@@ -1,0 +1,28 @@
+name: Discord Release Announcement
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Discord
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          NAME="${{ github.event.release.name }}"
+          URL="${{ github.event.release.html_url }}"
+          BODY=$(echo "${{ github.event.release.body }}" | head -c 1500)
+
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"${NAME}\",
+              \"url\": \"${URL}\",
+              \"description\": \"A new version of StellaCode has been released.\\n\\n\${BODY}\",
+              \"color\": 5865426,
+              \"footer\": { \"text\": \"${TAG} • npm install stellacode\" }
+            }]
+          }" "$WEBHOOK_URL"

@@ -1,0 +1,45 @@
+name: Discord Star Milestone
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check star milestones
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_STARS_WEBHOOK_URL }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          STARS=$(gh api repos/${{ github.repository }} --jq '.stargazers_count')
+          echo "Current stars: $STARS"
+
+          MILESTONES="10 25 50 100 250 500 1000 2500 5000 10000"
+          LAST="${{ vars.LAST_STAR_MILESTONE }}"
+          LAST=${LAST:-0}
+          echo "Last milestone: $LAST"
+
+          for M in $MILESTONES; do
+            if [ "$STARS" -ge "$M" ] && [ "$LAST" -lt "$M" ]; then
+              echo "Milestone crossed: $M stars!"
+
+              curl -s -H "Content-Type: application/json" -d "{
+                \"embeds\": [{
+                  \"title\": \"$M Stars!\",
+                  \"description\": \"StellaCode just reached **$M** stars on GitHub! Thank you for the support.\",
+                  \"color\": 16766720,
+                  \"url\": \"https://github.com/${{ github.repository }}\"
+                }]
+              }" "$WEBHOOK_URL"
+
+              gh api -X PATCH /repos/${{ github.repository }}/actions/variables/LAST_STAR_MILESTONE \
+                -f name='LAST_STAR_MILESTONE' -f value="$M" 2>/dev/null || \
+              gh api -X POST /repos/${{ github.repository }}/actions/variables \
+                -f name='LAST_STAR_MILESTONE' -f value="$M"
+
+              break
+            fi
+          done
