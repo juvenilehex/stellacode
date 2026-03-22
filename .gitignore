@@ -29,6 +29,10 @@ client/screenshots/
 # Internal docs (not published)
 .internal/
 
+# Bot build output
+bot/dist/
+bot/node_modules/
+
 # IDE / OS junk
 .idea/
 .vscode/
