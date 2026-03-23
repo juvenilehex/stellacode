@@ -11,10 +11,7 @@ Thumbs.db
 # Internal dev scripts
 *.mjs
 
-# Test files — keep out of git
-**/*.test.*
-**/*.spec.*
-**/__tests__/
+# Test coverage output
 coverage/
 
 # Screenshots -- block everything, then whitelist README images
