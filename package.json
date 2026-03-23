@@ -4,7 +4,7 @@
   "description": "Code Observatory — observe your codebase as a living constellation",
   "type": "module",
   "bin": {
-    "stellacode": "./bin/stellacode.js"
+    "stellacode": "bin/stellacode.js"
   },
   "files": [
     "bin/",
@@ -41,7 +41,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/juvenilehex/stellacode"
+    "url": "git+https://github.com/juvenilehex/stellacode.git"
   },
   "keywords": [
     "code-visualization",
