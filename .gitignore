@@ -29,6 +29,9 @@ client/screenshots/
 # Internal docs (not published)
 .internal/
 
+# npm pack artifacts
+*.tgz
+
 # Bot build output
 bot/dist/
 bot/node_modules/
