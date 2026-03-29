@@ -12,6 +12,7 @@ import { createWatcher } from './watcher.js';
 import { AgentTracker } from './agent/tracker.js';
 import { LiveAgentWatcher } from './agent/live-watcher.js';
 import { CONFIG } from './config.js';
+import { recordBuildMetrics, getBuildMetricsHistory, getLatestBuildMetrics } from './metrics.js';
 import type { GraphData } from './graph/types.js';
 
 const PORT = CONFIG.port;
@@ -38,7 +39,7 @@ const agentTracker = new AgentTracker(targetDir);
 let graphData: GraphData;
 function rebuildGraph() {
   const start = Date.now();
-  const files = parseProject(targetDir);
+  const parseResult = parseProject(targetDir);
 
   let coChanges;
   let fileGitMeta;
@@ -50,8 +51,24 @@ function rebuildGraph() {
     fileAgentMeta = agentTracker.getFileAgentMeta(commits);
   }
 
-  graphData = buildGraph(files, targetDir, { coChanges, fileGitMeta, fileAgentMeta });
-  console.log(`[StellaCode] Graph built: ${graphData.stats.totalFiles} files, ${graphData.stats.totalEdges} edges (${Date.now() - start}ms)`);
+  graphData = buildGraph(parseResult.files, targetDir, { coChanges, fileGitMeta, fileAgentMeta });
+  const buildDurationMs = Date.now() - start;
+
+  // Record build metrics (L6 learning loop)
+  recordBuildMetrics({
+    timestamp: new Date().toISOString(),
+    scannedFiles: parseResult.scannedCount,
+    parseSuccessCount: parseResult.parseSuccessCount,
+    parseFailureCount: parseResult.parseFailureCount,
+    graphNodes: graphData.nodes.length,
+    graphEdges: graphData.edges.length,
+    buildDurationMs,
+    languageBreakdown: { ...graphData.stats.languages },
+    totalSymbols: graphData.stats.totalSymbols,
+    totalDirs: graphData.stats.totalDirs,
+  });
+
+  console.log(`[StellaCode] Graph built: ${graphData.stats.totalFiles} files, ${graphData.stats.totalEdges} edges (${buildDurationMs}ms)`);
 }
 
 rebuildGraph();
@@ -136,6 +153,18 @@ app.get('/api/graph/node/:id', (req, res) => {
 
 app.get('/api/stats', (_req, res) => {
   res.json(graphData.stats);
+});
+
+app.get('/api/metrics', (req, res) => {
+  const raw = parseInt(String(req.query.limit ?? ''));
+  const limit = Math.min(Number.isFinite(raw) && raw > 0 ? raw : 100, 100);
+  const history = getBuildMetricsHistory();
+  const latest = getLatestBuildMetrics();
+  res.json({
+    latest,
+    history: history.slice(-limit),
+    totalBuilds: history.length,
+  });
 });
 
 app.get('/api/agent/events', (_req, res) => {
