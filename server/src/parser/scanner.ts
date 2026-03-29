@@ -47,7 +47,8 @@ export function scanDirectory(rootDir: string): ScannedFile[] {
           if (visitedInodes.has(realPath)) continue;
           visitedInodes.add(realPath);
         } catch {
-          continue; // Broken symlink — skip
+          // intentionally ignored: broken symlink cannot be resolved — skip entry
+          continue;
         }
         walk(fullPath, depth + 1);
       } else if (entry.isFile()) {

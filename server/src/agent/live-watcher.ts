@@ -102,7 +102,10 @@ export class LiveAgentWatcher {
         const fullPath = path.join(this.claudeProjectDir, dir);
         try {
           if (!fs.statSync(fullPath).isDirectory()) continue;
-        } catch { continue; }
+        } catch {
+          // intentionally ignored: non-directory entries fail stat — skip silently
+          continue;
+        }
 
         const dirLower = dir.toLowerCase().replace(/_/g, '-');
         // Check if the directory name ends with our project identifier
@@ -110,8 +113,8 @@ export class LiveAgentWatcher {
           return fullPath;
         }
       }
-    } catch {
-      // Ignore read errors
+    } catch (err) {
+      console.warn('[LiveAgent] Failed to read project directory:', (err as Error).message);
     }
 
     return null;
@@ -125,7 +128,9 @@ export class LiveAgentWatcher {
           results.push(path.join(dir, entry));
         }
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.warn('[LiveAgent] Failed to list JSONL files:', (err as Error).message);
+    }
     return results;
   }
 
@@ -143,9 +148,13 @@ export class LiveAgentWatcher {
           }
         }
       });
-      watcher.on('error', () => { /* ignore watch errors */ });
+      watcher.on('error', (err) => {
+        console.warn('[LiveAgent] Directory watcher error:', err.message);
+      });
       this.watchers.push(watcher);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.warn('[LiveAgent] Failed to watch directory:', (err as Error).message);
+    }
 
     // Start tailing existing JSONL files (most recent ones)
     const jsonlFiles = this.findJsonlFiles(projectDir)
@@ -164,7 +173,8 @@ export class LiveAgentWatcher {
     try {
       const stat = fs.statSync(filePath);
       this.filePositions.set(filePath, stat.size);
-    } catch {
+    } catch (err) {
+      console.warn('[LiveAgent] Failed to stat file, starting from 0:', (err as Error).message);
       this.filePositions.set(filePath, 0);
     }
 
@@ -179,9 +189,13 @@ export class LiveAgentWatcher {
         }, this.READ_DEBOUNCE_MS);
         this.readDebounceTimers.set(filePath, timer);
       });
-      watcher.on('error', () => { /* ignore watch errors */ });
+      watcher.on('error', (err) => {
+        console.warn('[LiveAgent] File watcher error:', err.message);
+      });
       this.watchers.push(watcher);
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.warn('[LiveAgent] Failed to watch file:', (err as Error).message);
+    }
   }
 
   private readNewLines(filePath: string) {
@@ -189,7 +203,10 @@ export class LiveAgentWatcher {
     let stat: fs.Stats;
     try {
       stat = fs.statSync(filePath);
-    } catch { return; }
+    } catch {
+      // intentionally ignored: file may be deleted between writes — race condition expected
+      return;
+    }
 
     if (stat.size <= lastPos) return;
 
@@ -200,7 +217,10 @@ export class LiveAgentWatcher {
     let fd: number;
     try {
       fd = fs.openSync(filePath, 'r');
-    } catch { return; }
+    } catch (err) {
+      console.warn('[LiveAgent] Failed to open file for reading:', (err as Error).message);
+      return;
+    }
 
     const buf = Buffer.alloc(readSize);
     try {
@@ -218,7 +238,7 @@ export class LiveAgentWatcher {
         const parsed: JournalLine = JSON.parse(line);
         this.processLine(parsed);
       } catch {
-        // Incomplete JSON line, skip
+        // intentionally ignored: JSONL stream may contain incomplete lines during active writes
       }
     }
   }
@@ -305,7 +325,9 @@ export class LiveAgentWatcher {
 
   close() {
     for (const w of this.watchers) {
-      try { w.close(); } catch { /* ignore */ }
+      try { w.close(); } catch {
+        // intentionally ignored: watcher may already be closed
+      }
     }
     this.watchers = [];
     if (this.scanInterval) {

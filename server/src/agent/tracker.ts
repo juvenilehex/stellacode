@@ -68,7 +68,9 @@ function git(args: string[], cwd: string): string {
       timeout: CONFIG.git.commandTimeout,
       windowsHide: true,
     }).trim();
-  } catch {
+  } catch (err) {
+    // Git command failures are expected (not a repo, git not installed, etc.)
+    console.warn('[Git]', `git ${args[0]} failed:`, (err as Error).message?.split('\n')[0]);
     return '';
   }
 }
@@ -407,7 +409,8 @@ export class AgentTracker {
         events: [],
         filesModified: [],
       };
-    } catch {
+    } catch (err) {
+      console.warn('[Tracker] Failed to stat .claude directory:', (err as Error).message);
       return null;
     }
   }

@@ -175,7 +175,8 @@ app.post('/api/target', (req, res) => {
     if (!fs.statSync(resolved).isDirectory()) {
       return res.status(400).json({ error: 'Not a directory' });
     }
-  } catch {
+  } catch (err) {
+    console.warn('[API] Target directory stat failed:', (err as Error).message);
     return res.status(400).json({ error: 'Directory not found' });
   }
 
