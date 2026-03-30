@@ -1,5 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
+import { UsageTracker } from './usage-tracker.js';
 
 /** All message types the server can broadcast */
 export type WsMessageType = 'connected' | 'graph:update' | 'file:change' | 'agent:live';
@@ -13,6 +14,7 @@ const HEARTBEAT_INTERVAL = 30_000;
 export class WsBroadcaster {
   private wss: WebSocketServer;
   private heartbeatTimer: ReturnType<typeof setInterval>;
+  readonly usageTracker = new UsageTracker();
 
   constructor(server: Server) {
     this.wss = new WebSocketServer({ server, path: '/ws' });
@@ -31,11 +33,19 @@ export class WsBroadcaster {
         return;
       }
 
+      // Track session (L2 usage statistics)
+      const sessionId = this.usageTracker.onConnect();
+      (ws as unknown as { sessionId: number }).sessionId = sessionId;
+
       // Mark alive for heartbeat
       (ws as unknown as { isAlive: boolean }).isAlive = true;
       ws.on('pong', () => { (ws as unknown as { isAlive: boolean }).isAlive = true; });
 
       ws.on('error', (err) => console.error('[WS] Client error:', err.message));
+
+      ws.on('close', () => {
+        this.usageTracker.onDisconnect(sessionId);
+      });
 
       // Reject oversized messages (1MB limit).
       // RawData = Buffer | ArrayBuffer | Buffer[] — handle every variant so the
@@ -87,6 +97,16 @@ export class WsBroadcaster {
 
   get clientCount(): number {
     return this.wss.clients.size;
+  }
+
+  /** Get session IDs of all currently connected clients */
+  getActiveSessionIds(): number[] {
+    const ids: number[] = [];
+    for (const client of this.wss.clients) {
+      const sessionId = (client as unknown as { sessionId?: number }).sessionId;
+      if (sessionId != null) ids.push(sessionId);
+    }
+    return ids;
   }
 
   close(): void {

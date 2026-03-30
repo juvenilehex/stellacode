@@ -120,6 +120,17 @@ app.use((_req, res, next) => {
   next();
 });
 
+// ── Usage tracking middleware (L2 — record feature access per active session) ──
+app.use((req, _res, next) => {
+  if (req.path.startsWith('/api/')) {
+    const tracker = broadcaster.usageTracker;
+    for (const sessionId of broadcaster.getActiveSessionIds()) {
+      tracker.recordFeatureAccess(sessionId, req.path);
+    }
+  }
+  next();
+});
+
 // ── Serve client static files in production ──
 const __serverDir = path.dirname(fileURLToPath(import.meta.url));
 const clientDistPath = path.resolve(__serverDir, '..', '..', 'client', 'dist');
@@ -254,6 +265,14 @@ app.get('/api/timeline', (req, res) => {
 app.get('/api/git/co-changes', (_req, res) => {
   const commits = agentTracker.getGitLog(CONFIG.git.coChangeLogLimit);
   res.json(agentTracker.getCoChanges(commits));
+});
+
+// ── Usage Feedback API (L2 quality loop) ──
+
+app.get('/api/feedback/usage', (req, res) => {
+  const raw = parseInt(String(req.query.limit ?? ''));
+  const limit = Math.min(Number.isFinite(raw) && raw > 0 ? raw : 20, 50);
+  res.json(broadcaster.usageTracker.getSummary(limit));
 });
 
 // ── Relayout API ──
