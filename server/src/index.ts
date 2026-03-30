@@ -12,7 +12,7 @@ import { createWatcher } from './watcher.js';
 import { AgentTracker } from './agent/tracker.js';
 import { LiveAgentWatcher } from './agent/live-watcher.js';
 import { CONFIG } from './config.js';
-import { recordBuildMetrics, getBuildMetricsHistory, getLatestBuildMetrics } from './metrics.js';
+import { recordBuildMetrics, getBuildMetricsHistory, getLatestBuildMetrics, analyzeMetrics } from './metrics.js';
 import type { GraphData } from './graph/types.js';
 
 const PORT = CONFIG.port;
@@ -176,6 +176,10 @@ app.get('/api/metrics', (req, res) => {
     history: history.slice(-limit),
     totalBuilds: history.length,
   });
+});
+
+app.get('/api/metrics/analysis', (_req, res) => {
+  res.json(analyzeMetrics());
 });
 
 app.get('/api/agent/events', (_req, res) => {

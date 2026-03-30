@@ -41,3 +41,100 @@ export function getBuildMetricsHistory(): BuildMetrics[] {
 export function getLatestBuildMetrics(): BuildMetrics | null {
   return history.length > 0 ? history[history.length - 1] : null;
 }
+
+/** L6 분석: 메트릭 추세 분석 → 경고/제안 자동 생성 */
+export interface MetricsAlert {
+  level: 'warning' | 'info';
+  metric: string;
+  message: string;
+  currentValue: number;
+  threshold?: number;
+}
+
+export function analyzeMetrics(): { alerts: MetricsAlert[]; summary: Record<string, unknown> } {
+  const alerts: MetricsAlert[] = [];
+
+  if (history.length < 2) {
+    return {
+      alerts: [{ level: 'info', metric: 'history', message: 'Not enough build history for trend analysis (need >= 2 builds)', currentValue: history.length }],
+      summary: { totalBuilds: history.length },
+    };
+  }
+
+  const latest = history[history.length - 1];
+  const recent = history.slice(-10);
+
+  // 파싱 실패율 분석
+  const totalScanned = latest.scannedFiles;
+  const failureRate = totalScanned > 0 ? latest.parseFailureCount / totalScanned : 0;
+  if (failureRate > 0.1) {
+    alerts.push({
+      level: 'warning',
+      metric: 'parseFailureRate',
+      message: `Parse failure rate ${(failureRate * 100).toFixed(1)}% exceeds 10% threshold (${latest.parseFailureCount}/${totalScanned} files)`,
+      currentValue: Math.round(failureRate * 1000) / 10,
+      threshold: 10,
+    });
+  }
+
+  // 빌드 시간 증가 추세 분석
+  if (recent.length >= 3) {
+    const recentDurations = recent.map(m => m.buildDurationMs);
+    const firstHalf = recentDurations.slice(0, Math.floor(recentDurations.length / 2));
+    const secondHalf = recentDurations.slice(Math.floor(recentDurations.length / 2));
+    const avgFirst = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+    const avgSecond = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+
+    if (avgFirst > 0 && avgSecond > avgFirst * 1.3) {
+      alerts.push({
+        level: 'warning',
+        metric: 'buildDurationTrend',
+        message: `Build duration increasing: ${Math.round(avgFirst)}ms → ${Math.round(avgSecond)}ms (+${Math.round(((avgSecond - avgFirst) / avgFirst) * 100)}%). Consider optimizing scan scope.`,
+        currentValue: Math.round(avgSecond),
+        threshold: Math.round(avgFirst * 1.3),
+      });
+    }
+  }
+
+  // 그래프 복잡도 경고 (노드 대비 엣지 비율)
+  if (latest.graphNodes > 0) {
+    const edgeRatio = latest.graphEdges / latest.graphNodes;
+    if (edgeRatio > 10) {
+      alerts.push({
+        level: 'warning',
+        metric: 'graphComplexity',
+        message: `Graph edge/node ratio ${edgeRatio.toFixed(1)} exceeds 10. High coupling detected.`,
+        currentValue: Math.round(edgeRatio * 10) / 10,
+        threshold: 10,
+      });
+    }
+  }
+
+  // 심볼 수 대비 파일 수 — 파일당 심볼이 너무 많으면 파일 분할 제안
+  const filesWithSymbols = latest.parseSuccessCount;
+  if (filesWithSymbols > 0) {
+    const symbolsPerFile = latest.totalSymbols / filesWithSymbols;
+    if (symbolsPerFile > 50) {
+      alerts.push({
+        level: 'info',
+        metric: 'symbolDensity',
+        message: `Average ${symbolsPerFile.toFixed(0)} symbols/file. Consider splitting large files for maintainability.`,
+        currentValue: Math.round(symbolsPerFile),
+        threshold: 50,
+      });
+    }
+  }
+
+  return {
+    alerts,
+    summary: {
+      totalBuilds: history.length,
+      latestBuildMs: latest.buildDurationMs,
+      parseFailureRate: Math.round(failureRate * 1000) / 10,
+      graphNodes: latest.graphNodes,
+      graphEdges: latest.graphEdges,
+      totalSymbols: latest.totalSymbols,
+      scannedFiles: latest.scannedFiles,
+    },
+  };
+}
