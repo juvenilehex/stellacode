@@ -3,7 +3,7 @@ import type { Server } from 'node:http';
 import { UsageTracker } from './usage-tracker.js';
 
 /** All message types the server can broadcast */
-export type WsMessageType = 'connected' | 'graph:update' | 'file:change' | 'agent:live';
+export type WsMessageType = 'connected' | 'graph:update' | 'file:change' | 'agent:live' | 'quality:alert';
 
 /** Maximum simultaneous WebSocket connections */
 const MAX_CONNECTIONS = 20;

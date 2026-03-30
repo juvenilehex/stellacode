@@ -14,6 +14,97 @@ import { LiveAgentWatcher } from './agent/live-watcher.js';
 import { CONFIG } from './config.js';
 import { recordBuildMetrics, getBuildMetricsHistory, getLatestBuildMetrics, analyzeMetrics } from './metrics.js';
 import type { GraphData } from './graph/types.js';
+import type { WsBroadcaster as WsBroadcasterType } from './ws.js';
+
+// ── L5: Autonomous quality judgment after each graph build ──
+
+interface QualityAlert {
+  level: 'warning' | 'critical';
+  category: 'parse-failure' | 'island-files' | 'circular-dependency';
+  message: string;
+  metric: number;
+  threshold: number;
+  /** Affected node IDs for client-side highlighting */
+  affectedNodes?: string[];
+}
+
+interface QualityReport {
+  timestamp: number;
+  alerts: QualityAlert[];
+  passed: boolean;
+}
+
+function judgeGraphQuality(
+  data: GraphData,
+  parseSuccessCount: number,
+  parseFailureCount: number,
+): QualityReport {
+  const alerts: QualityAlert[] = [];
+
+  // 1. Parse failure rate > 10%
+  const totalScanned = parseSuccessCount + parseFailureCount;
+  if (totalScanned > 0) {
+    const failureRate = parseFailureCount / totalScanned;
+    if (failureRate > 0.1) {
+      alerts.push({
+        level: failureRate > 0.3 ? 'critical' : 'warning',
+        category: 'parse-failure',
+        message: `Parse failure rate ${(failureRate * 100).toFixed(1)}% exceeds 10% (${parseFailureCount}/${totalScanned} files)`,
+        metric: Math.round(failureRate * 1000) / 10,
+        threshold: 10,
+      });
+    }
+  }
+
+  // 2. Island files (no incoming imports, no exports) ratio > 20%
+  const fileNodes = data.nodes.filter(n => n.type === 'file');
+  if (fileNodes.length > 0) {
+    const islandNodes = fileNodes.filter(n => n.meta?.islandFile === true);
+    const islandRate = islandNodes.length / fileNodes.length;
+    if (islandRate > 0.2) {
+      alerts.push({
+        level: 'warning',
+        category: 'island-files',
+        message: `Island file ratio ${(islandRate * 100).toFixed(1)}% exceeds 20% (${islandNodes.length}/${fileNodes.length} files). Consider reviewing code structure.`,
+        metric: Math.round(islandRate * 1000) / 10,
+        threshold: 20,
+        affectedNodes: islandNodes.map(n => n.id),
+      });
+    }
+  }
+
+  // 3. Circular dependency detection — find edges labelled 'circular'
+  const circularEdges = data.edges.filter(e => e.label?.includes('circular'));
+  if (circularEdges.length > 0) {
+    const affectedNodeIds = new Set<string>();
+    for (const edge of circularEdges) {
+      affectedNodeIds.add(edge.source);
+      affectedNodeIds.add(edge.target);
+    }
+    alerts.push({
+      level: 'warning',
+      category: 'circular-dependency',
+      message: `${circularEdges.length} circular dependency edge(s) detected across ${affectedNodeIds.size} files. Refactoring recommended.`,
+      metric: circularEdges.length,
+      threshold: 0,
+      affectedNodes: [...affectedNodeIds],
+    });
+  }
+
+  return {
+    timestamp: Date.now(),
+    alerts,
+    passed: alerts.length === 0,
+  };
+}
+
+function broadcastQualityReport(ws: WsBroadcasterType, report: QualityReport): void {
+  if (report.alerts.length === 0) return;
+  for (const alert of report.alerts) {
+    console.log(`[QualityJudge] ${alert.level.toUpperCase()}: ${alert.message}`);
+  }
+  ws.broadcast('quality:alert', report);
+}
 
 const PORT = CONFIG.port;
 
@@ -37,6 +128,9 @@ const agentTracker = new AgentTracker(targetDir);
 
 // Parse project
 let graphData: GraphData;
+let lastParseSuccessCount = 0;
+let lastParseFailureCount = 0;
+
 function rebuildGraph() {
   const start = Date.now();
   const parseResult = parseProject(targetDir);
@@ -53,6 +147,10 @@ function rebuildGraph() {
 
   graphData = buildGraph(parseResult.files, targetDir, { coChanges, fileGitMeta, fileAgentMeta });
   const buildDurationMs = Date.now() - start;
+
+  // Store parse counts for quality judgment
+  lastParseSuccessCount = parseResult.parseSuccessCount;
+  lastParseFailureCount = parseResult.parseFailureCount;
 
   // Record build metrics (L6 learning loop)
   recordBuildMetrics({
@@ -182,6 +280,11 @@ app.get('/api/metrics/analysis', (_req, res) => {
   res.json(analyzeMetrics());
 });
 
+// L5: Quality judgment endpoint (autonomous assessment on demand)
+app.get('/api/quality', (_req, res) => {
+  res.json(judgeGraphQuality(graphData, lastParseSuccessCount, lastParseFailureCount));
+});
+
 app.get('/api/agent/events', (_req, res) => {
   res.json(agentTracker.getEvents());
 });
@@ -237,6 +340,9 @@ app.post('/api/target', (req, res) => {
   agentTracker.updateTarget(resolved);
   rebuildGraph();
   broadcaster.broadcast('graph:update', graphData);
+  // L5: Autonomous quality judgment after target change
+  const report = judgeGraphQuality(graphData, lastParseSuccessCount, lastParseFailureCount);
+  broadcastQualityReport(broadcaster, report);
 
   res.json({ target: resolved, stats: graphData.stats });
 });
@@ -325,6 +431,9 @@ function onFileChange(event: { type: string; relativePath: string; filePath: str
   rebuildTimeout = setTimeout(() => {
     rebuildGraph();
     broadcaster.broadcast('graph:update', graphData);
+    // L5: Autonomous quality judgment after rebuild
+    const report = judgeGraphQuality(graphData, lastParseSuccessCount, lastParseFailureCount);
+    broadcastQualityReport(broadcaster, report);
   }, CONFIG.watcher.rebuildDelay);
 }
 
@@ -354,6 +463,13 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`[StellaCode] Server running at http://localhost:${PORT}`);
   console.log(`[StellaCode] WebSocket at ws://localhost:${PORT}/ws`);
   console.log(`[StellaCode] API: GET /api/graph, /api/stats, /api/target`);
+  // L5: Run quality judgment on initial build (log-only, no WS clients yet)
+  const initialReport = judgeGraphQuality(graphData, lastParseSuccessCount, lastParseFailureCount);
+  if (!initialReport.passed) {
+    for (const alert of initialReport.alerts) {
+      console.log(`[QualityJudge] ${alert.level.toUpperCase()}: ${alert.message}`);
+    }
+  }
 });
 
 // Graceful shutdown
