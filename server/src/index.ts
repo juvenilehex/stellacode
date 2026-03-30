@@ -12,7 +12,7 @@ import { createWatcher } from './watcher.js';
 import { AgentTracker } from './agent/tracker.js';
 import { LiveAgentWatcher } from './agent/live-watcher.js';
 import { CONFIG } from './config.js';
-import { recordBuildMetrics, getBuildMetricsHistory, getLatestBuildMetrics, analyzeMetrics } from './metrics.js';
+import { recordBuildMetrics, getBuildMetricsHistory, getLatestBuildMetrics, analyzeMetrics, getAdjustmentLog } from './metrics.js';
 import type { GraphData } from './graph/types.js';
 import type { WsBroadcaster as WsBroadcasterType } from './ws.js';
 
@@ -106,6 +106,49 @@ function broadcastQualityReport(ws: WsBroadcasterType, report: QualityReport): v
   ws.broadcast('quality:alert', report);
 }
 
+// ── L3: Runtime graph integrity verification after each build ──
+
+interface IntegrityResult {
+  valid: boolean;
+  nodeCount: number;
+  edgeCount: number;
+  errors: string[];
+  timestamp: number;
+}
+
+function verifyGraphIntegrity(data: GraphData): IntegrityResult {
+  const errors: string[] = [];
+
+  // 1. Graph must have at least one node
+  if (data.nodes.length === 0) {
+    errors.push('Graph has 0 nodes — empty graph produced');
+  }
+
+  // 2. All edge source/target must reference existing node IDs
+  const nodeIds = new Set(data.nodes.map(n => n.id));
+  for (const edge of data.edges) {
+    if (!nodeIds.has(edge.source)) {
+      errors.push(`Edge ${edge.id}: source "${edge.source}" references non-existent node`);
+    }
+    if (!nodeIds.has(edge.target)) {
+      errors.push(`Edge ${edge.id}: target "${edge.target}" references non-existent node`);
+    }
+  }
+
+  // Cap error messages to avoid log spam on severely broken graphs
+  const cappedErrors = errors.length > 20
+    ? [...errors.slice(0, 20), `... and ${errors.length - 20} more errors`]
+    : errors;
+
+  return {
+    valid: errors.length === 0,
+    nodeCount: data.nodes.length,
+    edgeCount: data.edges.length,
+    errors: cappedErrors,
+    timestamp: Date.now(),
+  };
+}
+
 const PORT = CONFIG.port;
 
 // Parse --target flag or use env/default
@@ -131,6 +174,9 @@ let graphData: GraphData;
 let lastParseSuccessCount = 0;
 let lastParseFailureCount = 0;
 
+/** Last integrity check result (exposed via /api/integrity) */
+let lastIntegrityResult: IntegrityResult | null = null;
+
 function rebuildGraph() {
   const start = Date.now();
   const parseResult = parseProject(targetDir);
@@ -145,8 +191,30 @@ function rebuildGraph() {
     fileAgentMeta = agentTracker.getFileAgentMeta(commits);
   }
 
-  graphData = buildGraph(parseResult.files, targetDir, { coChanges, fileGitMeta, fileAgentMeta });
+  const candidateGraph = buildGraph(parseResult.files, targetDir, { coChanges, fileGitMeta, fileAgentMeta });
   const buildDurationMs = Date.now() - start;
+
+  // L3: Verify integrity of the newly built graph
+  const integrity = verifyGraphIntegrity(candidateGraph);
+  lastIntegrityResult = integrity;
+
+  if (!integrity.valid) {
+    console.error(`[L3:IntegrityCheck] FAILED — ${integrity.errors.length} error(s):`);
+    for (const err of integrity.errors) {
+      console.error(`  - ${err}`);
+    }
+    // Keep previous graphData to avoid serving broken data.
+    // But still update parse counts and record metrics so L6 can track the failure.
+    if (graphData) {
+      console.warn('[L3:IntegrityCheck] Retaining previous valid graph');
+    } else {
+      // First build ever — no previous graph to retain, use candidate anyway
+      graphData = candidateGraph;
+      console.warn('[L3:IntegrityCheck] No previous graph — using candidate despite errors');
+    }
+  } else {
+    graphData = candidateGraph;
+  }
 
   // Store parse counts for quality judgment
   lastParseSuccessCount = parseResult.parseSuccessCount;
@@ -158,15 +226,18 @@ function rebuildGraph() {
     scannedFiles: parseResult.scannedCount,
     parseSuccessCount: parseResult.parseSuccessCount,
     parseFailureCount: parseResult.parseFailureCount,
-    graphNodes: graphData.nodes.length,
-    graphEdges: graphData.edges.length,
+    graphNodes: candidateGraph.nodes.length,
+    graphEdges: candidateGraph.edges.length,
     buildDurationMs,
-    languageBreakdown: { ...graphData.stats.languages },
-    totalSymbols: graphData.stats.totalSymbols,
-    totalDirs: graphData.stats.totalDirs,
+    languageBreakdown: { ...candidateGraph.stats.languages },
+    totalSymbols: candidateGraph.stats.totalSymbols,
+    totalDirs: candidateGraph.stats.totalDirs,
   });
 
-  console.log(`[StellaCode] Graph built: ${graphData.stats.totalFiles} files, ${graphData.stats.totalEdges} edges (${buildDurationMs}ms)`);
+  // L6: Run analysis — this may auto-adjust CONFIG based on trends
+  analyzeMetrics();
+
+  console.log(`[StellaCode] Graph built: ${candidateGraph.stats.totalFiles} files, ${candidateGraph.stats.totalEdges} edges (${buildDurationMs}ms)${integrity.valid ? '' : ' [INTEGRITY ERRORS]'}`);
 }
 
 rebuildGraph();
@@ -383,6 +454,27 @@ app.get('/api/feedback/usage', (req, res) => {
   const raw = parseInt(String(req.query.limit ?? ''));
   const limit = Math.min(Number.isFinite(raw) && raw > 0 ? raw : 20, 50);
   res.json(broadcaster.usageTracker.getSummary(limit));
+});
+
+// ── L2: Usage insights endpoint (feedback → behavior change) ──
+
+app.get('/api/feedback/insights', (_req, res) => {
+  res.json(broadcaster.usageTracker.getInsights());
+});
+
+// ── L3: Graph integrity endpoint ──
+
+app.get('/api/integrity', (_req, res) => {
+  if (!lastIntegrityResult) {
+    return res.json({ valid: true, nodeCount: 0, edgeCount: 0, errors: [], timestamp: 0, message: 'No builds yet' });
+  }
+  res.json(lastIntegrityResult);
+});
+
+// ── L6: Config adjustments log endpoint ──
+
+app.get('/api/metrics/adjustments', (_req, res) => {
+  res.json({ adjustments: getAdjustmentLog(), currentConfig: { rebuildDelay: CONFIG.watcher.rebuildDelay } });
 });
 
 // ── Relayout API ──

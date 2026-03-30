@@ -1,5 +1,7 @@
 /** Build metrics collection and in-memory history (L6 learning loop) */
 
+import { CONFIG } from './config.js';
+
 export interface BuildMetrics {
   /** ISO timestamp of the build */
   timestamp: string;
@@ -51,12 +53,28 @@ export interface MetricsAlert {
   threshold?: number;
 }
 
-export function analyzeMetrics(): { alerts: MetricsAlert[]; summary: Record<string, unknown> } {
+export interface ConfigAdjustment {
+  field: string;
+  previousValue: number;
+  newValue: number;
+  reason: string;
+  timestamp: string;
+}
+
+const adjustmentLog: ConfigAdjustment[] = [];
+
+/** L6 7→: Get logged config adjustments */
+export function getAdjustmentLog(): ConfigAdjustment[] {
+  return adjustmentLog;
+}
+
+export function analyzeMetrics(): { alerts: MetricsAlert[]; adjustments: ConfigAdjustment[]; summary: Record<string, unknown> } {
   const alerts: MetricsAlert[] = [];
 
   if (history.length < 2) {
     return {
       alerts: [{ level: 'info', metric: 'history', message: 'Not enough build history for trend analysis (need >= 2 builds)', currentValue: history.length }],
+      adjustments: [],
       summary: { totalBuilds: history.length },
     };
   }
@@ -125,8 +143,59 @@ export function analyzeMetrics(): { alerts: MetricsAlert[]; summary: Record<stri
     }
   }
 
+  // ── L6 7→: Auto-adjust CONFIG based on alerts ──
+  const newAdjustments: ConfigAdjustment[] = [];
+
+  // High parse failure rate → reduce rebuild delay to skip problematic files faster
+  // (interpreted as: large/complex files cause failures, so increase debounce to
+  //  batch changes and reduce wasted rebuilds)
+  const parseFailureAlert = alerts.find(a => a.metric === 'parseFailureRate');
+  if (parseFailureAlert) {
+    const prevDelay = CONFIG.watcher.rebuildDelay;
+    const newDelay = Math.min(prevDelay + 200, 2000);
+    if (newDelay !== prevDelay) {
+      CONFIG.watcher.rebuildDelay = newDelay;
+      const adj: ConfigAdjustment = {
+        field: 'watcher.rebuildDelay',
+        previousValue: prevDelay,
+        newValue: newDelay,
+        reason: `Parse failure rate ${parseFailureAlert.currentValue}% > 10% — increasing debounce to reduce wasted rebuilds`,
+        timestamp: new Date().toISOString(),
+      };
+      newAdjustments.push(adj);
+      adjustmentLog.push(adj);
+      console.log(`[L6:AutoAdjust] watcher.rebuildDelay: ${prevDelay}ms → ${newDelay}ms (high parse failure rate)`);
+    }
+  }
+
+  // Build duration increasing → increase debounce interval
+  const durationAlert = alerts.find(a => a.metric === 'buildDurationTrend');
+  if (durationAlert) {
+    const prevDelay = CONFIG.watcher.rebuildDelay;
+    const newDelay = Math.min(prevDelay + 300, 3000);
+    if (newDelay !== prevDelay) {
+      CONFIG.watcher.rebuildDelay = newDelay;
+      const adj: ConfigAdjustment = {
+        field: 'watcher.rebuildDelay',
+        previousValue: prevDelay,
+        newValue: newDelay,
+        reason: `Build duration trending up (${durationAlert.currentValue}ms) — increasing debounce to reduce rebuild frequency`,
+        timestamp: new Date().toISOString(),
+      };
+      newAdjustments.push(adj);
+      adjustmentLog.push(adj);
+      console.log(`[L6:AutoAdjust] watcher.rebuildDelay: ${prevDelay}ms → ${newDelay}ms (build duration trend)`);
+    }
+  }
+
+  // Cap adjustment log to prevent unbounded growth
+  if (adjustmentLog.length > 50) {
+    adjustmentLog.splice(0, adjustmentLog.length - 50);
+  }
+
   return {
     alerts,
+    adjustments: newAdjustments,
     summary: {
       totalBuilds: history.length,
       latestBuildMs: latest.buildDurationMs,
@@ -135,6 +204,7 @@ export function analyzeMetrics(): { alerts: MetricsAlert[]; summary: Record<stri
       graphEdges: latest.graphEdges,
       totalSymbols: latest.totalSymbols,
       scannedFiles: latest.scannedFiles,
+      currentRebuildDelay: CONFIG.watcher.rebuildDelay,
     },
   };
 }

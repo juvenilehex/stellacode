@@ -27,6 +27,23 @@ export interface UsageSummary {
   }>;
 }
 
+/** Quick-exit threshold: sessions shorter than this are flagged */
+const QUICK_EXIT_THRESHOLD_MS = 10_000;
+
+export interface UsageInsight {
+  type: 'top-features' | 'quick-exit-rate' | 'feature-trend';
+  message: string;
+  data: Record<string, unknown>;
+}
+
+export interface UsageInsights {
+  topFeatures: string[];
+  quickExitRate: number;
+  quickExitCount: number;
+  totalCompletedSessions: number;
+  insights: UsageInsight[];
+}
+
 /** Known feature categories derived from API / WS message patterns */
 const FEATURE_FROM_PATH: Record<string, string> = {
   '/api/graph': 'graph',
@@ -141,6 +158,57 @@ export class UsageTracker {
       averageDurationMs,
       featureUsage,
       recentSessions: recent,
+    };
+  }
+
+  /** L2 7→: Derive actionable insights from usage data */
+  getInsights(): UsageInsights {
+    const all = Array.from(this.sessions.values());
+    const completed = all.filter(s => s.disconnectedAt !== null);
+
+    // Top features by usage count
+    const featureCounts: Record<string, number> = {};
+    for (const session of all) {
+      for (const feature of session.featuresAccessed) {
+        featureCounts[feature] = (featureCounts[feature] ?? 0) + 1;
+      }
+    }
+    const topFeatures = Object.entries(featureCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([feature]) => feature);
+
+    // Quick-exit detection
+    const quickExits = completed.filter(
+      s => s.durationMs !== null && s.durationMs < QUICK_EXIT_THRESHOLD_MS,
+    );
+    const quickExitRate = completed.length > 0
+      ? quickExits.length / completed.length
+      : 0;
+
+    const insights: UsageInsight[] = [];
+
+    if (topFeatures.length > 0) {
+      insights.push({
+        type: 'top-features',
+        message: `Most used features: ${topFeatures.slice(0, 3).join(', ')}`,
+        data: { ranked: topFeatures, counts: featureCounts },
+      });
+    }
+
+    if (completed.length >= 3 && quickExitRate > 0.3) {
+      insights.push({
+        type: 'quick-exit-rate',
+        message: `${(quickExitRate * 100).toFixed(0)}% of sessions exit within ${QUICK_EXIT_THRESHOLD_MS / 1000}s — possible UX friction`,
+        data: { quickExitRate, quickExitCount: quickExits.length, threshold: QUICK_EXIT_THRESHOLD_MS },
+      });
+    }
+
+    return {
+      topFeatures,
+      quickExitRate: Math.round(quickExitRate * 1000) / 1000,
+      quickExitCount: quickExits.length,
+      totalCompletedSessions: completed.length,
+      insights,
     };
   }
 }
