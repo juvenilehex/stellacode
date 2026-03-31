@@ -43,11 +43,22 @@
     "type": "git",
     "url": "git+https://github.com/juvenilehex/stellacode.git"
   },
+  "homepage": "https://github.com/juvenilehex/stellacode#readme",
   "keywords": [
     "code-visualization",
     "codebase",
     "constellation",
     "observatory",
-    "developer-tools"
+    "developer-tools",
+    "3d",
+    "threejs",
+    "graph",
+    "static-analysis",
+    "git",
+    "ai-agent",
+    "code-structure",
+    "dependency-graph",
+    "co-change",
+    "npx"
   ]
 }

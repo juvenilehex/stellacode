@@ -1,9 +1,20 @@
+<p align="center">
+  <img src="client/public/og-image.png" alt="StellaCode — Code Observatory" width="720" />
+</p>
+
 # StellaCode
 
 **Code Observatory** -- observe your codebase as a living constellation.
 
+[![npm version](https://img.shields.io/npm/v/stellacode?color=CB3837&logo=npm)](https://www.npmjs.com/package/stellacode)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/VGQJSda5eZ)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+```bash
+npx stellacode
+```
+
+> One command. No install. Open http://localhost:3001 and point it at any project.
 
 ![StellaCode constellation view](screenshots/03-constellation-view.png)
 
@@ -20,10 +31,6 @@ Every file becomes a star. Every import draws a constellation line. Hidden coupl
 If you've been staring at strings of text in a dark room for hours, we hope watching your code quietly glow and orbit can offer a moment of calm. Your project is alive. It's growing. And now you can see it.
 
 ## Quick Start
-
-```bash
-npx stellacode
-```
 
 Or clone and run locally:
 
