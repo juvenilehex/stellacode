@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="client/public/og-image.png" alt="StellaCode — Code Observatory" width="720" />
-</p>
-
 # StellaCode
 
 **Code Observatory** -- observe your codebase as a living constellation.
