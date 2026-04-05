@@ -4,6 +4,7 @@ import { useSettingsStore, type CustomColors, type EdgeStyleKey, type NodeStyleK
 import { useGraphStore } from '../store/graph-store';
 import { useTimelineStore } from '../store/timeline-store';
 import { COLORS } from '../utils/colors';
+import { THEMES, type ThemeId } from '../utils/themes';
 
 
 // --- Color Picker Mini (portal-based to escape overflow clipping) ---
@@ -126,10 +127,11 @@ function MiniColorPicker({ value, onChange, children }: {
 
 // --- Slider ---
 
-function Slider({ value, onChange, min, max, label, suffix }: {
+function Slider({ value, onChange, min, max, step, label, suffix }: {
   value: number; onChange: (v: number) => void;
-  min: number; max: number; label: string; suffix?: string;
+  min: number; max: number; step?: number; label: string; suffix?: string;
 }) {
+  const display = value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : `${value}`;
   return (
     <div className="flex items-center gap-2">
       <span className="text-[10px] w-20 shrink-0" style={{ color: COLORS.textSecondary }}>{label}</span>
@@ -137,13 +139,14 @@ function Slider({ value, onChange, min, max, label, suffix }: {
         type="range"
         min={min}
         max={max}
+        step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="flex-1 h-1 accent-neutral-400 cursor-pointer"
         style={{ accentColor: 'rgba(180,180,200,0.6)' }}
       />
       <span className="text-[10px] w-8 text-right tabular-nums" style={{ color: COLORS.textSecondary }}>
-        {value}{suffix}
+        {display}{suffix}
       </span>
     </div>
   );
@@ -404,6 +407,120 @@ function ObserveRow() {
   );
 }
 
+// --- Config Dropdown ---
+
+const LAYOUT_PRESETS = [
+  { label: 'Compact', cohesion: 80 },
+  { label: 'Balanced', cohesion: 50 },
+  { label: 'Spread', cohesion: 20 },
+] as const;
+
+function ConfigDropdown() {
+  const theme = useSettingsStore(s => s.theme);
+  const setTheme = useSettingsStore(s => s.setTheme);
+  const scanMaxFiles = useSettingsStore(s => s.scanMaxFiles);
+  const setScanMaxFiles = useSettingsStore(s => s.setScanMaxFiles);
+  const scanMaxDepth = useSettingsStore(s => s.scanMaxDepth);
+  const setScanMaxDepth = useSettingsStore(s => s.setScanMaxDepth);
+  const dirCohesion = useSettingsStore(s => s.dirCohesion);
+  const setDirCohesion = useSettingsStore(s => s.setDirCohesion);
+  const relayout = useGraphStore(s => s.relayout);
+
+  const relayoutTimer = useRef<ReturnType<typeof setTimeout>>(null);
+  const debouncedRelayout = useCallback((v: number) => {
+    setDirCohesion(v);
+    if (relayoutTimer.current) clearTimeout(relayoutTimer.current);
+    relayoutTimer.current = setTimeout(() => relayout(v), 300);
+  }, [setDirCohesion, relayout]);
+
+  const applyPreset = useCallback((cohesion: number) => {
+    setDirCohesion(cohesion);
+    relayout(cohesion);
+  }, [setDirCohesion, relayout]);
+
+  return (
+    <DropdownButton label="Config">
+      <div className="py-2 px-1" style={{ width: 270 }}>
+        {/* Theme */}
+        <div className="px-2 mb-2">
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>Theme</span>
+        </div>
+        <div className="px-3 pb-2">
+          <div className="flex gap-1">
+            {(Object.keys(THEMES) as ThemeId[]).map(id => (
+              <button
+                key={id}
+                className="flex-1 text-[9px] py-0.5 rounded-sm transition-colors"
+                style={{
+                  color: theme === id ? COLORS.textPrimary : COLORS.textSecondary,
+                  background: theme === id ? 'rgba(180,180,200,0.12)' : 'transparent',
+                }}
+                onClick={() => setTheme(id)}
+              >
+                {THEMES[id].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="my-2 mx-3 h-px" style={{ background: 'rgba(180,180,200,0.08)' }} />
+
+        {/* Layout */}
+        <div className="px-2 mb-2">
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>Layout</span>
+        </div>
+        <div className="px-3 pb-1">
+          <div className="flex gap-1 mb-2">
+            {LAYOUT_PRESETS.map(p => (
+              <button
+                key={p.label}
+                className="flex-1 text-[9px] py-0.5 rounded-sm transition-colors"
+                style={{
+                  color: dirCohesion === p.cohesion ? COLORS.textPrimary : COLORS.textSecondary,
+                  background: dirCohesion === p.cohesion ? 'rgba(180,180,200,0.12)' : 'transparent',
+                }}
+                onClick={() => applyPreset(p.cohesion)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          <Slider label="Cohesion" value={dirCohesion} onChange={debouncedRelayout} min={0} max={100} />
+        </div>
+
+        <div className="my-2 mx-3 h-px" style={{ background: 'rgba(180,180,200,0.08)' }} />
+
+        {/* Scanning */}
+        <div className="px-2 mb-2">
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>Scanning</span>
+        </div>
+        <div className="px-3 space-y-2 pb-1">
+          <Slider label="Max Files" value={scanMaxFiles} onChange={setScanMaxFiles} min={1000} max={100000} step={1000} />
+          <Slider label="Max Depth" value={scanMaxDepth} onChange={setScanMaxDepth} min={5} max={100} />
+        </div>
+
+        <div className="my-2 mx-3 h-px" style={{ background: 'rgba(180,180,200,0.08)' }} />
+
+        {/* Discord */}
+        <div className="px-3 pb-2 pt-1">
+          <a
+            href="https://discord.gg/NR6D7mJSJK"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[10px] transition-colors hover:brightness-125"
+            style={{ color: COLORS.textSecondary }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.947 2.418-2.157 2.418z"/>
+            </svg>
+            Discord
+          </a>
+        </div>
+      </div>
+    </DropdownButton>
+  );
+}
+
 // --- Main Toolbar ---
 
 export function Toolbar() {
@@ -416,27 +533,14 @@ export function Toolbar() {
   const bloomIntensity = useSettingsStore(s => s.bloomIntensity);
   const setBloomIntensity = useSettingsStore(s => s.setBloomIntensity);
   const resetColors = useSettingsStore(s => s.resetColors);
-  const dirCohesion = useSettingsStore(s => s.dirCohesion);
-  const setDirCohesion = useSettingsStore(s => s.setDirCohesion);
   const colorMode = useSettingsStore(s => s.colorMode);
   const setColorMode = useSettingsStore(s => s.setColorMode);
   const complexityGlow = useSettingsStore(s => s.complexityGlow);
   const setComplexityGlow = useSettingsStore(s => s.setComplexityGlow);
-  const coChangePulse = useSettingsStore(s => s.coChangePulse);
-  const setCoChangePulse = useSettingsStore(s => s.setCoChangePulse);
-  const theme = useSettingsStore(s => s.theme);
-  const setTheme = useSettingsStore(s => s.setTheme);
-  const relayout = useGraphStore(s => s.relayout);
+  const edgePulse = useSettingsStore(s => s.edgePulse);
+  const setEdgePulse = useSettingsStore(s => s.setEdgePulse);
   const timelineMode = useTimelineStore(s => s.mode);
   const enterReplay = useTimelineStore(s => s.enterReplay);
-
-  // Debounce relayout to avoid flooding the server while dragging
-  const relayoutTimer = useRef<ReturnType<typeof setTimeout>>(null);
-  const debouncedRelayout = useCallback((v: number) => {
-    setDirCohesion(v);
-    if (relayoutTimer.current) clearTimeout(relayoutTimer.current);
-    relayoutTimer.current = setTimeout(() => relayout(v), 300);
-  }, [setDirCohesion, relayout]);
 
   return (
     <div className="fixed top-3 right-3 z-50 flex items-center flex-wrap justify-end gap-2 select-none pointer-events-auto" style={{ maxWidth: 'calc(100vw - 260px)' }}>
@@ -450,11 +554,33 @@ export function Toolbar() {
         }}
         onClick={() => {
           try {
-            const canvas = document.querySelector('canvas');
+            const canvas = document.querySelector('canvas') as HTMLCanvasElement | null;
             if (!canvas) return;
+
+            // Composite: CSS background gradient + WebGL canvas
+            const w = canvas.width;
+            const h = canvas.height;
+            const offscreen = document.createElement('canvas');
+            offscreen.width = w;
+            offscreen.height = h;
+            const ctx = offscreen.getContext('2d');
+            if (!ctx) return;
+
+            // Draw the CSS radial-gradient background
+            const grad = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.max(w, h) * 0.6);
+            grad.addColorStop(0, '#14121c');
+            grad.addColorStop(0.3, '#0f0d16');
+            grad.addColorStop(0.6, '#0b0a10');
+            grad.addColorStop(1, '#08061a');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw the WebGL canvas on top
+            ctx.drawImage(canvas, 0, 0);
+
             const link = document.createElement('a');
             link.download = `stellacode-${Date.now()}.png`;
-            link.href = canvas.toDataURL('image/png');
+            link.href = offscreen.toDataURL('image/png');
             link.click();
           } catch (err) {
             console.warn('[Capture] Screenshot failed:', err);
@@ -494,7 +620,7 @@ export function Toolbar() {
 
       {/* Settings */}
       <DropdownButton label="Settings">
-        <div className="py-2 px-1" style={{ width: 240 }}>
+        <div className="py-2 px-1" style={{ width: 270 }}>
           {/* Colors section */}
           <div className="px-2 mb-2">
             <div className="flex items-center justify-between mb-1">
@@ -523,7 +649,6 @@ export function Toolbar() {
             <Slider label="Font Size" value={fontSize} onChange={setFontSize} min={9} max={18} suffix="px" />
             <Slider label="Signal" value={signalIntensity} onChange={setSignalIntensity} min={1} max={100} />
             <Slider label="Bloom" value={bloomIntensity} onChange={setBloomIntensity} min={0} max={100} />
-            <Slider label="Cohesion" value={dirCohesion} onChange={debouncedRelayout} min={0} max={100} />
           </div>
 
           <div className="my-2 mx-3 h-px" style={{ background: 'rgba(180,180,200,0.08)' }} />
@@ -550,7 +675,7 @@ export function Toolbar() {
               </div>
             </div>
             <Slider label="Complexity" value={complexityGlow} onChange={setComplexityGlow} min={0} max={100} suffix="%" />
-            <ToggleRow label="Co-change Pulse" active={coChangePulse} onToggle={() => setCoChangePulse(!coChangePulse)} />
+            <ToggleRow label="Edge Pulse" active={edgePulse} onToggle={() => setEdgePulse(!edgePulse)} />
           </div>
 
           <div className="my-2 mx-3 h-px" style={{ background: 'rgba(180,180,200,0.08)' }} />
@@ -565,22 +690,8 @@ export function Toolbar() {
         </div>
       </DropdownButton>
 
-      {/* Settings panel toggle (gear icon) */}
-      <button
-        className="px-1.5 py-1 rounded-sm transition-all duration-150"
-        style={{
-          background: panels.settings ? 'rgba(180,180,200,0.12)' : 'rgba(180,180,200,0.05)',
-          border: '0.5px solid rgba(180,180,200,0.10)',
-          color: panels.settings ? COLORS.textPrimary : COLORS.textSecondary,
-        }}
-        onClick={() => togglePanel('settings')}
-        title="Toggle Settings panel"
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-        </svg>
-      </button>
+      {/* Config */}
+      <ConfigDropdown />
     </div>
   );
 }

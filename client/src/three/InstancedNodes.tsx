@@ -1,6 +1,5 @@
-import { useRef, useMemo, useCallback } from 'react';
-import { useFrame, ThreeEvent } from '@react-three/fiber';
-import { Billboard, Text } from '@react-three/drei';
+import { useRef, useMemo, useCallback, useEffect } from 'react';
+import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { GraphNode } from '../types/graph';
 import { useGraphStore } from '../store/graph-store';
@@ -182,17 +181,23 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
       const isDimmed = hasSelection && !isSelected && !isConnected;
       const cFactor = (complexityGlow / 100) * getComplexityFactor(node);
       const complexityBoost = 1.0 + cFactor * 0.5;
-      const dimFactor = isDimmed ? 0.2 : isActive ? (1.0 + 0.5 * sig) : nodeOpacity * complexityBoost;
 
-      if (colorMode === 'age') {
-        _color.set(getNodeAgeColor(node.meta, allMetas));
-      } else if (colorMode === 'agent') {
-        _color.set(getNodeAgentColor(node.meta));
+      if (isActive) {
+        // Supernova: white-hot core when agent is modifying this file
+        const pulse = 0.85 + Math.sin(t * 6 + phase) * 0.15;
+        _color.setRGB(pulse, pulse, pulse);
       } else {
-        _color.set(getNodeColor(node.type, node.language, customColors));
-      }
-      if (dimFactor !== 1.0) {
-        _color.multiplyScalar(dimFactor);
+        const dimFactor = isDimmed ? 0.2 : nodeOpacity * complexityBoost;
+        if (colorMode === 'age') {
+          _color.set(getNodeAgeColor(node.meta, allMetas));
+        } else if (colorMode === 'agent') {
+          _color.set(getNodeAgentColor(node.meta));
+        } else {
+          _color.set(getNodeColor(node.type, node.language, customColors));
+        }
+        if (dimFactor !== 1.0) {
+          _color.multiplyScalar(dimFactor);
+        }
       }
       mesh.setColorAt(i, _color);
     }
@@ -253,42 +258,119 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
   );
 }
 
-/** Floating label shown based on labelMode setting */
+/** Canvas2D label overlay — zero WebGL draw calls, handles thousands of labels */
+const LABEL_CANVAS_ID = 'stella-label-canvas';
+const _vec = new THREE.Vector3();
+
 function OverlayLabel() {
+  const data = useGraphStore(s => s.data);
   const hoveredNodeId = useGraphStore(s => s.hoveredNodeId);
   const selectedNodeId = useGraphStore(s => s.selectedNodeId);
   const lodLevel = useGraphStore(s => s.lodLevel);
-  const getNode = useGraphStore(s => s.getNode);
+  const hiddenFilters = useGraphStore(s => s.hiddenFilters);
+  const timelineVisibleIds = useGraphStore(s => s.timelineVisibleIds);
+  const connectedNodeIds = useGraphStore(s => s.connectedNodeIds);
   const labelMode = useSettingsStore(s => s.labelMode);
   const fontSize = useSettingsStore(s => s.fontSize);
   const themeId = useSettingsStore(s => s.theme);
   const themeScene = getTheme(themeId).scene;
-  const themeBg = getTheme(themeId).colors.bg;
+  const { camera, size } = useThree();
 
-  if (labelMode === 'off' || lodLevel === 'project') return null;
+  // Create / resize the overlay canvas
+  useEffect(() => {
+    let canvas = document.getElementById(LABEL_CANVAS_ID) as HTMLCanvasElement | null;
+    if (!canvas) {
+      canvas = document.createElement('canvas');
+      canvas.id = LABEL_CANVAS_ID;
+      canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:10';
+      // Insert into the Observatory container (parent of the Three canvas)
+      const container = document.querySelector('.w-full.h-full.relative');
+      if (container) container.appendChild(canvas);
+    }
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = size.width * dpr;
+    canvas.height = size.height * dpr;
+    canvas.style.width = size.width + 'px';
+    canvas.style.height = size.height + 'px';
 
-  const nodeId = hoveredNodeId ?? selectedNodeId;
-  const node = nodeId ? getNode(nodeId) : undefined;
+    return () => {
+      // Clear on unmount but keep the canvas for reuse
+      const ctx = canvas!.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+    };
+  }, [size]);
 
-  if (!node) return null;
+  // Draw labels every frame
+  useFrame(() => {
+    const canvas = document.getElementById(LABEL_CANVAS_ID) as HTMLCanvasElement | null;
+    if (!canvas || !data || labelMode === 'off' || lodLevel === 'project') {
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+      return;
+    }
 
-  const baseScale = node.type === 'directory' ? 0.25 : 0.12 + node.scale * 0.08;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-  return (
-    <group position={[node.x, node.y, node.z]}>
-      <Billboard follow lockX={false} lockY={false} lockZ={false}>
-        <Text
-          position={[0, baseScale * 2.5, 0]}
-          fontSize={0.15 + fontSize * 0.01}
-          color={themeScene.nodeEmissiveBoost > 0 ? '#FFFFFF' : '#E8E0FF'}
-          anchorX="center"
-          anchorY="bottom"
-          outlineWidth={0.02 * themeScene.labelOutlineMultiplier}
-          outlineColor={themeBg}
-        >
-          {node.label}
-        </Text>
-      </Billboard>
-    </group>
-  );
+    const dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const basePx = Math.round((fontSize * 0.7 + 3) * dpr);
+    const highlightPx = Math.round((fontSize * 0.85 + 4) * dpr);
+    const baseColor = themeScene.nodeEmissiveBoost > 0 ? 'rgba(255,255,255,0.5)' : 'rgba(232,224,255,0.5)';
+    const highlightColor = themeScene.nodeEmissiveBoost > 0 ? '#FFFFFF' : '#E8E0FF';
+    const outlineColor = 'rgba(8,6,16,0.7)';
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+
+    const nodes = data.nodes;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+
+      // Visibility filters
+      if (timelineVisibleIds !== null && !timelineVisibleIds.has(node.id)) continue;
+      const fk = getNodeFilterKey(node.type, node.language);
+      if (fk !== '' && hiddenFilters.has(fk)) continue;
+      if (lodLevel === 'project' && node.type === 'file') continue;
+
+      const isHovered = node.id === hoveredNodeId;
+      const isSelected = node.id === selectedNodeId;
+      const isConnected = connectedNodeIds.has(node.id);
+      const isHighlighted = isHovered || isSelected || isConnected;
+
+      // In "selected" mode, only show highlighted labels
+      if (labelMode === 'selected' && !isHighlighted) continue;
+
+      // Project 3D → 2D
+      const baseScale = node.type === 'directory' ? 0.25 : 0.12 + node.scale * 0.08;
+      _vec.set(node.x, node.y + baseScale * 2.5, node.z);
+      _vec.project(camera);
+
+      // Skip if behind camera or far off-screen
+      if (_vec.z > 1 || _vec.z < -1) continue;
+      if (_vec.x < -1.2 || _vec.x > 1.2 || _vec.y < -1.2 || _vec.y > 1.2) continue;
+
+      const sx = (_vec.x * 0.5 + 0.5) * size.width * dpr;
+      const sy = (-_vec.y * 0.5 + 0.5) * size.height * dpr;
+
+      const px = isHighlighted ? highlightPx : basePx;
+      ctx.font = `${isHighlighted ? 'bold ' : ''}${px}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+
+      // Outline for readability
+      ctx.strokeStyle = outlineColor;
+      ctx.lineWidth = 2.5 * dpr;
+      ctx.lineJoin = 'round';
+      ctx.strokeText(node.label, sx, sy);
+
+      // Fill
+      ctx.fillStyle = isHighlighted ? highlightColor : baseColor;
+      ctx.fillText(node.label, sx, sy);
+    }
+  });
+
+  return null;
 }

@@ -3,7 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useAgentStore } from '../store/agent-store';
 import { useGraphStore } from '../store/graph-store';
-import { getAgentColor } from '../utils/colors';
+import { useSettingsStore } from '../store/settings-store';
+import { getAgentColor, getNodeColor } from '../utils/colors';
 import { glowTexture } from './glowTexture';
 
 const MAX_AGE = 5 * 60 * 1000; // 5 minutes
@@ -12,6 +13,7 @@ const MAX_AGE = 5 * 60 * 1000; // 5 minutes
 export function AgentTrail() {
   const events = useAgentStore(s => s.events);
   const data = useGraphStore(s => s.data);
+  const customColors = useSettingsStore(s => s.colors);
 
   const { sparkles, trailPaths } = useMemo(() => {
     if (!data || events.length === 0) return { sparkles: [], trailPaths: [] };
@@ -19,7 +21,7 @@ export function AgentTrail() {
     const nodeMap = new Map(data.nodes.map(n => [n.id, n]));
     const now = Date.now();
 
-    // Build sparkles
+    // Build sparkles — use node's language color for the glow
     const sparkles = events
       .filter(e => e.filePath && (now - e.timestamp) < MAX_AGE)
       .map(e => {
@@ -28,7 +30,7 @@ export function AgentTrail() {
         if (!node) return null;
         return {
           position: [node.x, node.y, node.z] as [number, number, number],
-          color: getAgentColor(e.agent),
+          color: getNodeColor(node.type, node.language, customColors),
           age: (now - e.timestamp) / MAX_AGE,
           phase: node.x * 2.1 + node.y * 1.3,
         };
@@ -92,7 +94,7 @@ export function AgentTrail() {
     }
 
     return { sparkles, trailPaths };
-  }, [events, data]);
+  }, [events, data, customColors]);
 
   if (sparkles.length === 0 && trailPaths.length === 0) return null;
 

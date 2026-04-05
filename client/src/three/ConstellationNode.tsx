@@ -137,15 +137,23 @@ export function ConstellationNode({ node }: ConstellationNodeProps) {
 
     if (matRef.current) {
       const shimmer = hovered ? 0.3 * Math.sin(t * 6 + phase) : 0;
-      const agentGlow = isAgentActive ? (0.3 + 0.3 * sig) + (0.15 + 0.15 * sig) * Math.sin(t * 6 + phase) : 0;
       // Complexity glow: brighter emissive for complex files
       const baseEmissive = 0.25 + cGlow * 0.35;
-      const targetEmissive = isSelected ? 0.6 : hovered ? 0.4 + shimmer : isAgentActive ? 0.3 + agentGlow : baseEmissive;
+      const targetEmissive = isSelected ? 0.6 : hovered ? 0.4 + shimmer : isAgentActive ? 1.0 : baseEmissive;
       matRef.current.emissiveIntensity = THREE.MathUtils.lerp(
         matRef.current.emissiveIntensity,
         targetEmissive,
         0.06,
       );
+      // Supernova: white-hot core when agent is modifying this file
+      if (isAgentActive) {
+        const pulse = 0.85 + Math.sin(t * 6 + phase) * 0.15;
+        matRef.current.color.setRGB(pulse, pulse, pulse);
+        matRef.current.emissive.setRGB(pulse, pulse, pulse);
+      } else {
+        matRef.current.color.set(color);
+        matRef.current.emissive.set(color);
+      }
     }
 
     if (glowRef.current) {

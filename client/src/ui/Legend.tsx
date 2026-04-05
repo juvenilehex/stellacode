@@ -4,14 +4,14 @@ import { useGraphStore } from '../store/graph-store';
 import { useSettingsStore } from '../store/settings-store';
 import type { FilterKey } from '../store/graph-store';
 
-const LEGEND_ITEMS: { key: FilterKey; color: string; label: string; shape: 'diamond' | 'circle' | 'line' | 'dotted' }[] = [
+const LEGEND_ITEMS: { key: FilterKey; color: string; label: string; shape: 'diamond' | 'circle' | 'line' }[] = [
   { key: 'directory', color: COLORS.directory, label: 'Directory', shape: 'diamond' },
   { key: 'typescript', color: COLORS.typescript, label: 'TypeScript', shape: 'circle' },
   { key: 'javascript', color: COLORS.javascript, label: 'JavaScript', shape: 'circle' },
   { key: 'python', color: COLORS.python, label: 'Python', shape: 'circle' },
   { key: 'dir-edge', color: COLORS.directoryEdge, label: 'Structure', shape: 'line' },
   { key: 'import', color: COLORS.importEdge, label: 'Import', shape: 'line' },
-  { key: 'co-change', color: COLORS.coChangeEdge, label: 'Co-change', shape: 'dotted' },
+  { key: 'co-change', color: COLORS.coChangeEdge, label: 'Co-change', shape: 'line' },
 ];
 
 const LABEL_MODE_DISPLAY = {
@@ -58,8 +58,6 @@ export function Legend() {
           >
             {item.shape === 'diamond' ? (
               <div className="w-2 h-2 rotate-45" style={{ background: c }} />
-            ) : item.shape === 'dotted' ? (
-              <div className="w-3 h-px" style={{ borderTop: `1px dashed ${c}` }} />
             ) : item.shape === 'line' ? (
               <div className="w-3 h-px" style={{ background: c }} />
             ) : (

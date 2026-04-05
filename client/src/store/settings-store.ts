@@ -58,8 +58,8 @@ interface SettingsState {
   dirCohesion: number;
   /** Node color mode: 'language' (default), 'age' (git first commit), or 'agent' (AI authorship) */
   colorMode: 'language' | 'age' | 'agent';
-  /** Co-change edge pulse animation */
-  coChangePulse: boolean;
+  /** Edge pulse animation (all edge types) */
+  edgePulse: boolean;
   /** Complexity glow intensity (0-100). 0 = disabled. */
   complexityGlow: number;
   /** Scan limits — guidance values for server configuration */
@@ -70,7 +70,7 @@ interface SettingsState {
 
   togglePanel: (key: keyof UIPanelVisibility) => void;
   setColorMode: (mode: 'language' | 'age' | 'agent') => void;
-  setCoChangePulse: (on: boolean) => void;
+  setEdgePulse: (on: boolean) => void;
   setComplexityGlow: (value: number) => void;
   setColor: (key: keyof CustomColors, value: string) => void;
   setEdgeStyle: (key: EdgeStyleKey, style: Partial<EdgeStyle>) => void;
@@ -114,9 +114,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       colors: { ...DEFAULT_COLORS },
       edgeStyles: {
-        importEdge:    { weight: 1, opacity: 8 },
-        directoryEdge: { weight: 1, opacity: 22 },
-        coChangeEdge:  { weight: 1, opacity: 35 },
+        importEdge:    { weight: 1, opacity: 10 },
+        directoryEdge: { weight: 1, opacity: 20 },
+        coChangeEdge:  { weight: 1, opacity: 15 },
       },
       nodeStyles: {
         directory:  { opacity: 80, size: 100 },
@@ -132,7 +132,7 @@ export const useSettingsStore = create<SettingsState>()(
       observeMode: false,
       dirCohesion: 50,
       colorMode: 'language' as const,
-      coChangePulse: true,
+      edgePulse: true,
       complexityGlow: 50,
       scanMaxFiles: 10000,
       scanMaxDepth: 30,
@@ -165,7 +165,7 @@ export const useSettingsStore = create<SettingsState>()(
         edgeStyles: {
           importEdge:    { weight: 1, opacity: 8 },
           directoryEdge: { weight: 1, opacity: 22 },
-          coChangeEdge:  { weight: 1, opacity: 35 },
+          coChangeEdge:  { weight: 1, opacity: 28 },
         },
         nodeStyles: {
           directory:  { opacity: 80, size: 100 },
@@ -187,7 +187,7 @@ export const useSettingsStore = create<SettingsState>()(
       setObserveMode: (on) => set({ observeMode: on }),
       setDirCohesion: (value) => set({ dirCohesion: Math.max(0, Math.min(100, value)) }),
       setColorMode: (mode) => set({ colorMode: mode }),
-      setCoChangePulse: (on) => set({ coChangePulse: on }),
+      setEdgePulse: (on) => set({ edgePulse: on }),
       setComplexityGlow: (value) => set({ complexityGlow: Math.max(0, Math.min(100, value)) }),
       setScanMaxFiles: (value) => set({ scanMaxFiles: Math.max(1000, Math.min(100000, value)) }),
       setScanMaxDepth: (value) => set({ scanMaxDepth: Math.max(5, Math.min(100, value)) }),

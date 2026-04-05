@@ -12,7 +12,7 @@ import { Toolbar } from './ui/Toolbar';
 import { TimelineSlider } from './ui/TimelineSlider';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { DraggablePanel } from './ui/DraggablePanel';
-import { SettingsPanel } from './ui/SettingsPanel';
+
 import { ThemeProvider } from './ui/ThemeProvider';
 import { useGraphData } from './hooks/useGraphData';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -109,7 +109,7 @@ function Observatory() {
       {/* UI overlay — fades out in observe mode */}
       <div
         className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
-        style={{ opacity: observeMode ? 0 : 1, pointerEvents: observeMode ? 'none' : 'auto' }}
+        style={{ opacity: observeMode ? 0 : 1 }}
       >
         <Toolbar />
 
@@ -161,13 +161,6 @@ function Observatory() {
           minHeight={80}
         >
           <AgentPanel />
-        </DraggablePanel>
-
-        <DraggablePanel
-          visible={panels.settings}
-          defaultStyle={{ top: 48, right: 280 }}
-        >
-          <SettingsPanel />
         </DraggablePanel>
 
         <HoverTooltip />

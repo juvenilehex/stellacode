@@ -21,7 +21,7 @@ export function ConstellationEdge({ edge, nodes }: ConstellationEdgeProps) {
     : edge.type === 'directory' ? 'directoryEdge' : 'importEdge';
   const edgeStyle = useSettingsStore(s => s.edgeStyles[styleKey]);
   const customColors = useSettingsStore(s => s.colors);
-  const coChangePulse = useSettingsStore(s => s.coChangePulse);
+  const edgePulse = useSettingsStore(s => s.edgePulse);
   const entryProgress = useGraphStore(s => s.entryProgress);
   const entryActive = useGraphStore(s => s.entryActive);
   const timelineVisibleIds = useGraphStore(s => s.timelineVisibleIds);
@@ -36,11 +36,10 @@ export function ConstellationEdge({ edge, nodes }: ConstellationEdgeProps) {
 
   const isCircular = edge.label?.includes('circular') ?? false;
   const color = isCircular ? '#FF6B6B' : getEdgeColor(edge.type, customColors);
-  const isCoChange = edge.type === 'co-change';
   const baseOp = edgeStyle.opacity / 100;
 
   // Weight affects brightness (linewidth doesn't work in WebGL)
-  const weightBrightness = 0.6 + edgeStyle.weight * 0.4;
+  const weightBrightness = 0.3 + edgeStyle.weight * 0.2;
   const opacity = isDimmed ? 0.03
     : isHighlighted ? Math.min(1, (baseOp + 0.4) * weightBrightness)
     : baseOp * weightBrightness;
@@ -70,89 +69,60 @@ export function ConstellationEdge({ edge, nodes }: ConstellationEdgeProps) {
   if (edge.type === 'co-change' && hiddenFilters.has('co-change')) return null;
   if (edge.type === 'directory' && hiddenFilters.has('dir-edge')) return null;
 
-  // Co-change: render dotted segments with optional pulse animation
-  if (isCoChange) {
-    return <DottedEdge source={source} target={target} color={color} opacity={opacity} weight={edgeStyle.weight} strength={edge.strength ?? 0} pulse={coChangePulse} />;
-  }
+  return (
+    <PulseEdge
+      source={source}
+      target={target}
+      color={color}
+      opacity={opacity}
+      weight={edgeStyle.weight}
+      strength={edge.strength ?? 0}
+      pulse={edgePulse}
+      blending={edge.type === 'directory' ? THREE.AdditiveBlending : THREE.NormalBlending}
+    />
+  );
+}
+
+/** Solid edge with optional pulse animation (opacity modulation) */
+function PulseEdge({ source, target, color, opacity, weight = 1, strength = 0, pulse = true, blending = THREE.NormalBlending }: {
+  source: GraphNode; target: GraphNode; color: string; opacity: number; weight?: number; strength?: number; pulse?: boolean; blending?: THREE.Blending;
+}) {
+  const matRef = useRef<THREE.LineBasicMaterial>(null);
+
+  const points = useMemo(() => {
+    return new Float32Array([
+      source.x, source.y, source.z,
+      target.x, target.y, target.z,
+    ]);
+  }, [source.x, source.y, source.z, target.x, target.y, target.z]);
+
+  // Pulse phase offset for visual variety
+  const phaseOffset = source.x * 0.7 + target.y * 1.3;
+
+  // Pulse animation: modulate opacity
+  useFrame(({ clock }) => {
+    if (!pulse || !matRef.current) return;
+    const t = clock.elapsedTime;
+    const pulseSpeed = 1.5 + strength * 2.0;
+    const pulseAmp = 0.15 + strength * 0.25;
+    const wave = Math.sin(t * pulseSpeed + phaseOffset);
+    matRef.current.opacity = opacity * (1.0 + pulseAmp * wave);
+  });
 
   return (
     <line>
       <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          args={[points, 3]}
-        />
+        <bufferAttribute attach="attributes-position" args={[points, 3]} />
       </bufferGeometry>
       <lineBasicMaterial
+        ref={matRef}
         color={color}
         transparent
         opacity={opacity}
         linewidth={1}
         depthWrite={false}
-        blending={edge.type === 'directory' ? THREE.AdditiveBlending : THREE.NormalBlending}
+        blending={blending}
       />
     </line>
-  );
-}
-
-/** Co-change edge rendered as evenly spaced dots with optional pulse animation */
-function DottedEdge({ source, target, color, opacity, weight = 1, strength = 0, pulse = true }: {
-  source: GraphNode; target: GraphNode; color: string; opacity: number; weight?: number; strength?: number; pulse?: boolean;
-}) {
-  const matRef = useRef<THREE.PointsMaterial>(null);
-
-  const dots = useMemo(() => {
-    const sx = source.x, sy = source.y, sz = source.z;
-    const tx = target.x, ty = target.y, tz = target.z;
-    const dist = Math.sqrt((tx - sx) ** 2 + (ty - sy) ** 2 + (tz - sz) ** 2);
-    const count = Math.max(3, Math.floor(dist / 0.4));
-    const positions: [number, number, number][] = [];
-    for (let i = 0; i <= count; i++) {
-      const t = i / count;
-      positions.push([
-        sx + (tx - sx) * t,
-        sy + (ty - sy) * t,
-        sz + (tz - sz) * t,
-      ]);
-    }
-    return positions;
-  }, [source.x, source.y, source.z, target.x, target.y, target.z]);
-
-  const positionArray = useMemo(() => {
-    const arr = new Float32Array(dots.length * 3);
-    dots.forEach((p, i) => { arr[i * 3] = p[0]; arr[i * 3 + 1] = p[1]; arr[i * 3 + 2] = p[2]; });
-    return arr;
-  }, [dots]);
-
-  // Pulse phase offset for visual variety
-  const phaseOffset = source.x * 0.7 + target.y * 1.3;
-
-  // Pulse animation: modulate opacity and size based on coupling strength
-  useFrame(({ clock }) => {
-    if (!pulse || !matRef.current) return;
-    const t = clock.elapsedTime;
-    const pulseSpeed = 1.5 + strength * 2.0;
-    const pulseAmp = 0.3 + strength * 0.4;
-    const wave = Math.sin(t * pulseSpeed + phaseOffset);
-    matRef.current.opacity = opacity * (1.0 + pulseAmp * wave);
-    matRef.current.size = (0.06 + weight * 0.03) * (1.0 + 0.15 * wave);
-  });
-
-  return (
-    <points>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positionArray, 3]} />
-      </bufferGeometry>
-      <pointsMaterial
-        ref={matRef}
-        size={0.06 + weight * 0.03}
-        color={color}
-        transparent
-        opacity={opacity}
-        sizeAttenuation
-        depthWrite={false}
-        blending={THREE.AdditiveBlending}
-      />
-    </points>
   );
 }
