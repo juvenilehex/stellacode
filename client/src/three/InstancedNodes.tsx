@@ -294,9 +294,7 @@ function OverlayLabel() {
     canvas.style.height = size.height + 'px';
 
     return () => {
-      // Clear on unmount but keep the canvas for reuse
-      const ctx = canvas!.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+      canvas!.remove();
     };
   }, [size]);
 

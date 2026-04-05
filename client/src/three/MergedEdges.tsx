@@ -10,7 +10,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { getEdgeColor } from '../utils/colors';
 import { getTheme } from '../utils/themes';
 
-/** Base line width in pixels — all edges use this as a starting point */
+/** Base line width in pixels */
 const BASE_LINE_WIDTH = 0.3;
 
 /**
@@ -33,7 +33,6 @@ export function MergedEdges({ edges, nodeMap }: {
   const edgeBrightMult = getTheme(themeId).scene.edgeBrightnessMultiplier;
   const timelineVisibleIds = useGraphStore(s => s.timelineVisibleIds);
 
-  // Group edges by visual type for separate materials
   const { importEdges, dirEdges, coChangeEdges, circularEdges } = useMemo(() => {
     const imp: GraphEdge[] = [];
     const dir: GraphEdge[] = [];
@@ -41,26 +40,22 @@ export function MergedEdges({ edges, nodeMap }: {
     const circ: GraphEdge[] = [];
 
     for (const edge of edges) {
-      // LOD filter
       if (lodLevel === 'project' && edge.type === 'import') continue;
 
       const source = nodeMap.get(edge.source);
       const target = nodeMap.get(edge.target);
       if (!source || !target) continue;
 
-      // Timeline filter: skip edges whose endpoints aren't visible
       if (timelineVisibleIds !== null) {
         if (!timelineVisibleIds.has(edge.source) || !timelineVisibleIds.has(edge.target)) continue;
       }
 
-      // Entry animation: skip edges whose nodes haven't been revealed yet
       if (entryActive) {
         const sReveal = Math.max(0, Math.min(1, (source.x * 0.3 + source.y * 0.5 + source.z * 0.2 + 10) / 20));
         const tReveal = Math.max(0, Math.min(1, (target.x * 0.3 + target.y * 0.5 + target.z * 0.2 + 10) / 20));
         if (entryProgress < Math.max(sReveal, tReveal) + 0.05) continue;
       }
 
-      // Legend filter
       if (edge.type === 'import' && hiddenFilters.has('import')) continue;
       if (edge.type === 'co-change' && hiddenFilters.has('co-change')) continue;
       if (edge.type === 'directory' && hiddenFilters.has('dir-edge')) continue;
@@ -91,7 +86,6 @@ export function MergedEdges({ edges, nodeMap }: {
         selectedNodeId={selectedNodeId}
         brightnessMult={edgeBrightMult}
       />
-      {/* Circular dependency edges — red tint */}
       <Batch
         edges={circularEdges}
         nodeMap={nodeMap}
@@ -142,6 +136,18 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
   const lineRef = useRef<LineSegments2>(null);
   const matRef = useRef<LineMaterial>(null);
 
+  // Stable object — created once
+  const lineObj = useMemo(() => new LineSegments2(), []);
+  const matObj = useMemo(() => new LineMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 1,
+    linewidth: BASE_LINE_WIDTH * lineWidth,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    resolution: new THREE.Vector2(size.width, size.height),
+  }), []);
+
   const { positions, colors } = useMemo(() => {
     const posArr: number[] = [];
     const colArr: number[] = [];
@@ -151,12 +157,10 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
     for (const edge of edges) {
       const source = nodeMap.get(edge.source)!;
       const target = nodeMap.get(edge.target)!;
-
       const isHighlighted = selectedNodeId !== null && (
         edge.source === selectedNodeId || edge.target === selectedNodeId
       );
       const isDimmed = selectedNodeId !== null && !isHighlighted;
-
       const c = isDimmed ? dimColor : baseColor;
       const alpha = isDimmed ? 0.03 : isHighlighted ? highlightOpacity : baseOpacity;
       const brightness = alpha * brightnessMult;
@@ -165,7 +169,6 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
       colArr.push(c.r * brightness, c.g * brightness, c.b * brightness,
                    c.r * brightness, c.g * brightness, c.b * brightness);
     }
-
     return {
       positions: new Float32Array(posArr),
       colors: new Float32Array(colArr),
@@ -181,44 +184,44 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
     return () => { geom.dispose(); };
   }, [positions, colors]);
 
+  // Keep resolution and linewidth in sync
   useEffect(() => {
     if (matRef.current) {
       matRef.current.resolution.set(size.width, size.height);
+      matRef.current.linewidth = BASE_LINE_WIDTH * lineWidth;
     }
-  }, [size]);
+  }, [size, lineWidth]);
 
   if (positions.length === 0) return null;
 
   return (
-    <primitive object={new LineSegments2()} ref={lineRef}>
-      <primitive
-        object={new LineMaterial({
-          vertexColors: true,
-          transparent: true,
-          opacity: 1,
-          linewidth: BASE_LINE_WIDTH * lineWidth,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          resolution: new THREE.Vector2(size.width, size.height),
-        })}
-        ref={matRef}
-        attach="material"
-      />
+    <primitive object={lineObj} ref={lineRef}>
+      <primitive object={matObj} ref={matRef} attach="material" />
     </primitive>
   );
 }
 
-/** Pulsing edges: animates color brightness with sine wave (all edge types) */
+/** Pulsing edges: re-sets geometry colors each frame for sine wave animation */
 function PulsingEdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth = 1, selectedNodeId, brightnessMult = 1 }: EdgeBatchProps) {
   const { size } = useThree();
   const lineRef = useRef<LineSegments2>(null);
   const matRef = useRef<LineMaterial>(null);
-  const colorsRef = useRef<Float32Array | null>(null);
+
+  const lineObj = useMemo(() => new LineSegments2(), []);
+  const matObj = useMemo(() => new LineMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: 1,
+    linewidth: BASE_LINE_WIDTH * lineWidth,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    resolution: new THREE.Vector2(size.width, size.height),
+  }), []);
 
   const { positions, baseColors, edgeRanges } = useMemo(() => {
     const posArr: number[] = [];
     const colArr: number[] = [];
-    const ranges: { start: number; count: number; strength: number; phase: number }[] = [];
+    const ranges: { strength: number; phase: number }[] = [];
     const baseColor = new THREE.Color(color);
     const dimColor = new THREE.Color(color).multiplyScalar(0.15);
 
@@ -233,18 +236,14 @@ function PulsingEdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity
       const alpha = isDimmed ? 0.03 : isHighlighted ? highlightOpacity : baseOpacity;
       const brightness = alpha * brightnessMult;
 
-      const startVert = posArr.length / 3;
       posArr.push(source.x, source.y, source.z, target.x, target.y, target.z);
       colArr.push(c.r * brightness, c.g * brightness, c.b * brightness,
                    c.r * brightness, c.g * brightness, c.b * brightness);
       ranges.push({
-        start: startVert,
-        count: 2,
         strength: edge.strength ?? 0,
         phase: source.x * 0.7 + target.y * 1.3,
       });
     }
-
     return {
       positions: new Float32Array(posArr),
       baseColors: new Float32Array(colArr),
@@ -252,33 +251,32 @@ function PulsingEdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity
     };
   }, [edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth, selectedNodeId, brightnessMult]);
 
+  // Animated color buffer — mutated every frame
+  const animColors = useRef(new Float32Array(0));
+
   useEffect(() => {
     if (!lineRef.current || positions.length === 0) return;
     const geom = new LineSegmentsGeometry();
     geom.setPositions(positions);
     geom.setColors(baseColors);
     lineRef.current.geometry = geom;
-    // Keep a reference to the instance colors for animation
-    colorsRef.current = new Float32Array(baseColors);
+    animColors.current = new Float32Array(baseColors);
     return () => { geom.dispose(); };
   }, [positions, baseColors]);
 
   useEffect(() => {
     if (matRef.current) {
       matRef.current.resolution.set(size.width, size.height);
+      matRef.current.linewidth = BASE_LINE_WIDTH * lineWidth;
     }
-  }, [size]);
+  }, [size, lineWidth]);
 
+  // Animate: rewrite color array and re-set on geometry each frame
   useFrame(({ clock }) => {
-    if (!lineRef.current || !colorsRef.current || edgeRanges.length === 0) return;
-    const geom = lineRef.current.geometry as LineSegmentsGeometry;
-    const instanceColorAttr = geom.getAttribute('instanceColorStart');
-    const instanceColorEndAttr = geom.getAttribute('instanceColorEnd');
-    if (!instanceColorAttr || !instanceColorEndAttr) return;
-
+    if (!lineRef.current || edgeRanges.length === 0) return;
     const t = clock.elapsedTime;
-    const startArr = instanceColorAttr.array as Float32Array;
-    const endArr = instanceColorEndAttr.array as Float32Array;
+    const arr = animColors.current;
+    if (arr.length !== baseColors.length) return;
 
     for (let i = 0; i < edgeRanges.length; i++) {
       const range = edgeRanges[i];
@@ -286,44 +284,23 @@ function PulsingEdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity
       const pulseAmp = 0.15 + range.strength * 0.25;
       const wave = 1.0 + pulseAmp * Math.sin(t * pulseSpeed + range.phase);
 
-      // Each edge = 1 instance, colors stored as start/end pairs
-      const bi = i * 3; // base index into baseColors (2 verts per edge, 3 components)
-      const sr = baseColors[bi] * wave;
-      const sg = baseColors[bi + 1] * wave;
-      const sb = baseColors[bi + 2] * wave;
-      const er = baseColors[bi + 3] * wave;
-      const eg = baseColors[bi + 4] * wave;
-      const eb = baseColors[bi + 5] * wave;
-
-      startArr[i * 3] = sr;
-      startArr[i * 3 + 1] = sg;
-      startArr[i * 3 + 2] = sb;
-      endArr[i * 3] = er;
-      endArr[i * 3 + 1] = eg;
-      endArr[i * 3 + 2] = eb;
+      // Each edge has 2 vertices × 3 color components = 6 floats
+      const bi = i * 6;
+      for (let j = 0; j < 6; j++) {
+        arr[bi + j] = baseColors[bi + j] * wave;
+      }
     }
 
-    instanceColorAttr.needsUpdate = true;
-    instanceColorEndAttr.needsUpdate = true;
+    // Re-set colors on the geometry (LineSegmentsGeometry handles interleaving)
+    const geom = lineRef.current.geometry as LineSegmentsGeometry;
+    geom.setColors(arr);
   });
 
   if (positions.length === 0) return null;
 
   return (
-    <primitive object={new LineSegments2()} ref={lineRef}>
-      <primitive
-        object={new LineMaterial({
-          vertexColors: true,
-          transparent: true,
-          opacity: 1,
-          linewidth: BASE_LINE_WIDTH * lineWidth,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          resolution: new THREE.Vector2(size.width, size.height),
-        })}
-        ref={matRef}
-        attach="material"
-      />
+    <primitive object={lineObj} ref={lineRef}>
+      <primitive object={matObj} ref={matRef} attach="material" />
     </primitive>
   );
 }
