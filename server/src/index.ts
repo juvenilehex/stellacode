@@ -282,9 +282,12 @@ app.use((_req, res, next) => {
   // 'unsafe-eval' is required by Three.js/React-Three-Fiber GLSL shader compilation.
   // blob: on worker-src is required for Three.js inline worker threads.
   // blob: on img-src is required for Three.js canvas/texture data URLs.
+  // CSP connect-src scoped to the configured port instead of wildcard ws://localhost:*
+  // In dev mode Vite runs on 5173 and proxies WS to the server port
+  const cspConnectSrc = `'self' ws://localhost:${PORT} ws://127.0.0.1:${PORT} ws://localhost:5173 ws://127.0.0.1:5173`;
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' ws://localhost:* ws://127.0.0.1:*; frame-ancestors 'none'",
+    `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src ${cspConnectSrc}; frame-ancestors 'none'`,
   );
   next();
 });

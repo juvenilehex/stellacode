@@ -33,6 +33,15 @@ client/screenshots/
 bot/dist/
 bot/node_modules/
 
+# Secrets & credentials
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+**/secrets/
+
 # IDE / OS junk
 .idea/
 .vscode/
