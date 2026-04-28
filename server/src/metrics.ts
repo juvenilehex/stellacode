@@ -144,6 +144,10 @@ export function analyzeMetrics(): { alerts: MetricsAlert[]; adjustments: ConfigA
   }
 
   // ── L6 7→: Auto-adjust CONFIG based on alerts ──
+  // L5 Kill switch: skip auto-adjust when disabled
+  if (CONFIG.killSwitch.disableAutoAdjust) {
+    return { alerts, adjustments: [], summary: { totalBuilds: history.length, killSwitchActive: true } };
+  }
   const newAdjustments: ConfigAdjustment[] = [];
 
   // High parse failure rate → reduce rebuild delay to skip problematic files faster

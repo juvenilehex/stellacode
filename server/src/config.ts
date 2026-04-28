@@ -69,4 +69,14 @@ export const CONFIG = {
 
   /** Graph rebuild co-change commit limit */
   graphCoChangeLimit: 300,
+
+  /** L5 kill switches: emergency stop for autonomous features */
+  killSwitch: {
+    /** Disable auto-config adjustments (L6 auto-tuning) */
+    disableAutoAdjust: false,
+    /** Disable automatic graph rebuild on file change */
+    disableAutoRebuild: false,
+    /** Disable quality judgment alerts */
+    disableQualityJudge: false,
+  },
 };

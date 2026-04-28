@@ -46,6 +46,7 @@
   "homepage": "https://github.com/juvenilehex/stellacode#readme",
   "keywords": [
     "code-visualization",
+    "code-observatory",
     "codebase",
     "constellation",
     "observatory",
@@ -53,12 +54,20 @@
     "3d",
     "threejs",
     "graph",
+    "force-directed-graph",
     "static-analysis",
     "git",
     "ai-agent",
     "code-structure",
     "dependency-graph",
     "co-change",
-    "npx"
+    "npx",
+    "code-analysis",
+    "git-visualization",
+    "cli-tool",
+    "react",
+    "typescript",
+    "webgl",
+    "vite"
   ]
 }

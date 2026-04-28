@@ -98,4 +98,20 @@ describe('CONFIG shape', () => {
     expect(CONFIG.git.commandTimeout).toBeGreaterThan(0);
     expect(CONFIG.git.minCoChangeFrequency).toBeGreaterThan(0);
   });
+
+  it('killSwitch config has expected boolean defaults', async () => {
+    const { CONFIG } = await import('../config.js');
+    expect(CONFIG).toHaveProperty('killSwitch');
+    expect(CONFIG.killSwitch.disableAutoAdjust).toBe(false);
+    expect(CONFIG.killSwitch.disableAutoRebuild).toBe(false);
+    expect(CONFIG.killSwitch.disableQualityJudge).toBe(false);
+  });
+
+  it('killSwitch can be toggled at runtime', async () => {
+    const { CONFIG } = await import('../config.js');
+    CONFIG.killSwitch.disableAutoAdjust = true;
+    expect(CONFIG.killSwitch.disableAutoAdjust).toBe(true);
+    // Reset
+    CONFIG.killSwitch.disableAutoAdjust = false;
+  });
 });

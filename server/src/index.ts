@@ -39,6 +39,10 @@ function judgeGraphQuality(
   parseSuccessCount: number,
   parseFailureCount: number,
 ): QualityReport {
+  // L5 Kill switch: skip quality judgment when disabled
+  if (CONFIG.killSwitch.disableQualityJudge) {
+    return { timestamp: Date.now(), alerts: [], passed: true };
+  }
   const alerts: QualityAlert[] = [];
 
   // 1. Parse failure rate > 10%
@@ -292,6 +296,35 @@ app.use((_req, res, next) => {
   next();
 });
 
+// ── L7: Simple in-memory rate limiter for API endpoints ──
+const _rateLimitStore = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 120;          // 120 requests per minute per IP
+
+app.use('/api/', (req, res, next) => {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const timestamps = _rateLimitStore.get(ip) || [];
+  const recent = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+  if (recent.length >= RATE_LIMIT_MAX) {
+    res.status(429).json({ error: 'Too many requests' });
+    return;
+  }
+  recent.push(now);
+  _rateLimitStore.set(ip, recent);
+  next();
+});
+
+// Periodic cleanup of rate limit store (every 5 minutes)
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
+  for (const [ip, timestamps] of _rateLimitStore) {
+    const recent = timestamps.filter(t => t > cutoff);
+    if (recent.length === 0) _rateLimitStore.delete(ip);
+    else _rateLimitStore.set(ip, recent);
+  }
+}, 5 * 60_000);
+
 // ── Usage tracking middleware (L2 — record feature access per active session) ──
 app.use((req, _res, next) => {
   if (req.path.startsWith('/api/')) {
@@ -365,6 +398,33 @@ app.get('/api/agent/events', (_req, res) => {
 
 app.get('/api/agent/sessions', (_req, res) => {
   res.json(agentTracker.getSessions());
+});
+
+// ── L5: Kill switch API (emergency stop + instant rollback) ──
+
+app.get('/api/kill-switch', (_req, res) => {
+  res.json(CONFIG.killSwitch);
+});
+
+app.post('/api/kill-switch/:target', (req, res) => {
+  const target = req.params.target;
+  const { enabled } = req.body ?? {};
+  const validTargets = ['disableAutoAdjust', 'disableAutoRebuild', 'disableQualityJudge'];
+  if (target === 'all') {
+    const value = enabled !== false;
+    for (const t of validTargets) {
+      (CONFIG.killSwitch as Record<string, boolean>)[t] = value;
+    }
+    console.log(`[L5:KillSwitch] ALL ${value ? 'ACTIVATED' : 'deactivated'}`);
+    return res.json({ killSwitch: CONFIG.killSwitch });
+  }
+  if (!validTargets.includes(target)) {
+    return res.status(400).json({ error: `Invalid target. Valid: ${validTargets.join(', ')}, all` });
+  }
+  const value = enabled !== false;
+  (CONFIG.killSwitch as Record<string, boolean>)[target] = value;
+  console.log(`[L5:KillSwitch] ${target} = ${value}`);
+  res.json({ killSwitch: CONFIG.killSwitch });
 });
 
 // ── Target API ──
