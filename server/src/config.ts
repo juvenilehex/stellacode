@@ -70,6 +70,21 @@ export const CONFIG = {
   /** Graph rebuild co-change commit limit */
   graphCoChangeLimit: 300,
 
+  /** AI agent detection patterns — add entries to detect new agents */
+  agentPatterns: [
+    { pattern: /claude/i, name: 'claude-code' },
+    { pattern: /copilot/i, name: 'copilot' },
+    { pattern: /cursor/i, name: 'cursor' },
+    { pattern: /aider/i, name: 'aider' },
+    { pattern: /codeium/i, name: 'codeium' },
+    { pattern: /tabnine/i, name: 'tabnine' },
+    { pattern: /windsurf|cascade/i, name: 'windsurf' },
+    { pattern: /devin-ai|devin/i, name: 'devin' },
+    { pattern: /amazon\s*q|aws-q/i, name: 'amazon-q' },
+    { pattern: /gemini/i, name: 'gemini' },
+    { pattern: /\bbolt\b|stackblitz/i, name: 'bolt' },
+  ] as { pattern: RegExp; name: string }[],
+
   /** L5 kill switches: emergency stop for autonomous features */
   killSwitch: {
     /** Disable auto-config adjustments (L6 auto-tuning) */

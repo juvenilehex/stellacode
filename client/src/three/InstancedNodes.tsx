@@ -1,5 +1,6 @@
 import { useRef, useMemo, useCallback, useEffect } from 'react';
 import { useFrame, useThree, ThreeEvent } from '@react-three/fiber';
+import { useShallow } from 'zustand/react/shallow';
 import * as THREE from 'three';
 import type { GraphNode } from '../types/graph';
 import { useGraphStore } from '../store/graph-store';
@@ -8,9 +9,18 @@ import { useSettingsStore } from '../store/settings-store';
 import { getNodeColor, getNodeFilterKey, getNodeAgeColor, getNodeAgentColor, getComplexityFactor, COLORS } from '../utils/colors';
 import type { NodeStyleKey } from '../store/settings-store';
 import { getTheme } from '../utils/themes';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const _dummy = new THREE.Object3D();
 const _color = new THREE.Color();
+
+/** Store-level memoized selector for age color normalization data */
+const selectAgeMetas = (s: { data: { nodes: GraphNode[] } | null }) => {
+  if (!s.data) return [];
+  return s.data.nodes
+    .filter(n => n.meta?.firstCommit)
+    .map(n => ({ firstCommit: n.meta!.firstCommit as number }));
+};
 
 /** Map node type+language to NodeStyleKey */
 function getNodeStyleKey(type: string, language?: string): NodeStyleKey {
@@ -44,26 +54,36 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const initedRef = useRef(false);
 
-  const selectedNodeId = useGraphStore(s => s.selectedNodeId);
-  const connectedNodeIds = useGraphStore(s => s.connectedNodeIds);
-  const hoveredNodeId = useGraphStore(s => s.hoveredNodeId);
-  const selectNode = useGraphStore(s => s.selectNode);
-  const hoverNode = useGraphStore(s => s.hoverNode);
-  const lodLevel = useGraphStore(s => s.lodLevel);
+  const {
+    selectedNodeId, connectedNodeIds, hoveredNodeId,
+    selectNode, hoverNode, lodLevel, hiddenFilters, timelineVisibleIds,
+  } = useGraphStore(useShallow(s => ({
+    selectedNodeId: s.selectedNodeId,
+    connectedNodeIds: s.connectedNodeIds,
+    hoveredNodeId: s.hoveredNodeId,
+    selectNode: s.selectNode,
+    hoverNode: s.hoverNode,
+    lodLevel: s.lodLevel,
+    hiddenFilters: s.hiddenFilters,
+    timelineVisibleIds: s.timelineVisibleIds,
+  })));
   const isFileActive = useAgentStore(s => s.isFileActive);
-  const hiddenFilters = useGraphStore(s => s.hiddenFilters);
-  const timelineVisibleIds = useGraphStore(s => s.timelineVisibleIds);
-  const signalIntensity = useSettingsStore(s => s.signalIntensity);
-  const nodeStyles = useSettingsStore(s => s.nodeStyles);
-  const customColors = useSettingsStore(s => s.colors);
-  const colorMode = useSettingsStore(s => s.colorMode);
-  const complexityGlow = useSettingsStore(s => s.complexityGlow);
-  const themeId = useSettingsStore(s => s.theme);
+  const {
+    signalIntensity, nodeStyles, customColors, colorMode, complexityGlow, themeId,
+  } = useSettingsStore(useShallow(s => ({
+    signalIntensity: s.signalIntensity,
+    nodeStyles: s.nodeStyles,
+    customColors: s.colors,
+    colorMode: s.colorMode,
+    complexityGlow: s.complexityGlow,
+    themeId: s.theme,
+  })));
   const themeScene = getTheme(themeId).scene;
   const entryProgress = useGraphStore(s => s.entryProgress);
   const entryActive = useGraphStore(s => s.entryActive);
   const allNodes = useGraphStore(s => s.data?.nodes);
   const sig = signalIntensity / 50;
+  const reducedMotion = useReducedMotion();
 
   const count = nodes.length;
 
@@ -74,13 +94,9 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
     return map;
   }, [nodes]);
 
-  // Age color: collect all node metas for normalization
-  const allMetas = useMemo(() => {
-    if (colorMode !== 'age' || !allNodes) return [];
-    return allNodes
-      .filter(n => n.meta?.firstCommit)
-      .map(n => ({ firstCommit: n.meta!.firstCommit as number }));
-  }, [colorMode, allNodes]);
+  // Age color: store-level selector (computed once per graph update, shared across instances)
+  const storeAgeMetas = useGraphStore(selectAgeMetas);
+  const allMetas = colorMode === 'age' ? storeAgeMetas : [];
 
   // Reset color init when custom colors or color mode change
   const prevColorsRef = useRef(customColors);
@@ -158,8 +174,9 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
         entryScale = reveal * (2.0 - reveal) * (reveal < 0.7 ? 1.3 : 1.0);
       }
 
-      const breathe = 1.0 + Math.sin(t * 1.5 + phase) * 0.04
-                          + Math.sin(t * 0.7 + phase * 0.5) * 0.02;
+      const breathe = reducedMotion ? 1.0
+        : 1.0 + Math.sin(t * 1.5 + phase) * 0.04
+              + Math.sin(t * 0.7 + phase * 0.5) * 0.02;
 
       const isSelected = selectedNodeId === node.id;
       const isHovered = hoveredNodeId === node.id;
@@ -168,7 +185,9 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
       const isActive = filePath ? isFileActive(filePath) : false;
 
       // Pulse
-      const agentPulse = isActive ? 1.0 + (0.15 + 0.25 * sig) + Math.sin(t * 8 + phase) * (0.15 + 0.15 * sig) : 1.0;
+      const agentPulse = isActive
+        ? (reducedMotion ? 1.3 : 1.0 + (0.15 + 0.25 * sig) + Math.sin(t * 8 + phase) * (0.15 + 0.15 * sig))
+        : 1.0;
       const pulse = isSelected ? 1.35 : isHovered ? 1.2 : agentPulse;
       const scale = baseScale * pulse * breathe * entryScale;
 
@@ -263,16 +282,23 @@ const LABEL_CANVAS_ID = 'stella-label-canvas';
 const _vec = new THREE.Vector3();
 
 function OverlayLabel() {
-  const data = useGraphStore(s => s.data);
-  const hoveredNodeId = useGraphStore(s => s.hoveredNodeId);
-  const selectedNodeId = useGraphStore(s => s.selectedNodeId);
-  const lodLevel = useGraphStore(s => s.lodLevel);
-  const hiddenFilters = useGraphStore(s => s.hiddenFilters);
-  const timelineVisibleIds = useGraphStore(s => s.timelineVisibleIds);
-  const connectedNodeIds = useGraphStore(s => s.connectedNodeIds);
-  const labelMode = useSettingsStore(s => s.labelMode);
-  const fontSize = useSettingsStore(s => s.fontSize);
-  const themeId = useSettingsStore(s => s.theme);
+  const {
+    data, hoveredNodeId, selectedNodeId,
+    lodLevel, hiddenFilters, timelineVisibleIds, connectedNodeIds,
+  } = useGraphStore(useShallow(s => ({
+    data: s.data,
+    hoveredNodeId: s.hoveredNodeId,
+    selectedNodeId: s.selectedNodeId,
+    lodLevel: s.lodLevel,
+    hiddenFilters: s.hiddenFilters,
+    timelineVisibleIds: s.timelineVisibleIds,
+    connectedNodeIds: s.connectedNodeIds,
+  })));
+  const { labelMode, fontSize, themeId } = useSettingsStore(useShallow(s => ({
+    labelMode: s.labelMode,
+    fontSize: s.fontSize,
+    themeId: s.theme,
+  })));
   const themeScene = getTheme(themeId).scene;
   const { camera, size } = useThree();
 
@@ -333,7 +359,6 @@ function OverlayLabel() {
       if (timelineVisibleIds !== null && !timelineVisibleIds.has(node.id)) continue;
       const fk = getNodeFilterKey(node.type, node.language);
       if (fk !== '' && hiddenFilters.has(fk)) continue;
-      if (lodLevel === 'project' && node.type === 'file') continue;
 
       const isHovered = node.id === hoveredNodeId;
       const isSelected = node.id === selectedNodeId;

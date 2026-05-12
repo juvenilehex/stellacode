@@ -1,9 +1,10 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { COLORS } from '../utils/colors';
 import { useSettingsStore } from '../store/settings-store';
 import { getTheme } from '../utils/themes';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 /** 3-layer star background + nebula clouds */
 export function Starfield() {
@@ -34,6 +35,7 @@ interface StarLayerProps {
 
 function StarLayer({ count, spread, size, color, opacity, speed }: StarLayerProps) {
   const ref = useRef<THREE.Points>(null);
+  const reducedMotion = useReducedMotion();
 
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3);
@@ -44,7 +46,7 @@ function StarLayer({ count, spread, size, color, opacity, speed }: StarLayerProp
   }, [count, spread]);
 
   useFrame((_state, delta) => {
-    if (ref.current) {
+    if (ref.current && !reducedMotion) {
       ref.current.rotation.y += speed * delta * 60;
       ref.current.rotation.x += speed * 0.3 * delta * 60;
     }
@@ -126,6 +128,11 @@ function NebulaSprite({ position, scale, color, opacity, phase }: {
     tex.needsUpdate = true;
     return tex;
   }, []);
+
+  // Dispose texture on unmount to prevent memory leak
+  useEffect(() => {
+    return () => { texture.dispose(); };
+  }, [texture]);
 
   useFrame(({ clock }) => {
     if (!ref.current) return;

@@ -9,6 +9,7 @@ import { useGraphStore } from '../store/graph-store';
 import { useSettingsStore } from '../store/settings-store';
 import { getEdgeColor } from '../utils/colors';
 import { getTheme } from '../utils/themes';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 /** Base line width in pixels */
 const BASE_LINE_WIDTH = 0.3;
@@ -72,7 +73,8 @@ export function MergedEdges({ edges, nodeMap }: {
   const dirStyle = edgeStyles.directoryEdge;
   const coStyle = edgeStyles.coChangeEdge;
 
-  const Batch = edgePulse ? PulsingEdgeBatch : EdgeBatch;
+  const reducedMotion = useReducedMotion();
+  const Batch = (edgePulse && !reducedMotion) ? GPUPulsingEdgeBatch : EdgeBatch;
 
   return (
     <>
@@ -201,27 +203,78 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
   );
 }
 
-/** Pulsing edges: re-sets geometry colors each frame for sine wave animation */
-function PulsingEdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth = 1, selectedNodeId, brightnessMult = 1 }: EdgeBatchProps) {
+/**
+ * GPU-based pulsing edges: pulse animation runs entirely on the GPU via shader.
+ * Uses onBeforeCompile to inject pulse logic into LineMaterial's shader,
+ * preserving fat line (Line2) sub-pixel width support.
+ *
+ * Per-frame cost: O(1) uniform update vs O(E) CPU color buffer rewrite.
+ */
+function GPUPulsingEdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth = 1, selectedNodeId, brightnessMult = 1 }: EdgeBatchProps) {
   const { size } = useThree();
   const lineRef = useRef<LineSegments2>(null);
-  const matRef = useRef<LineMaterial>(null);
 
   const lineObj = useMemo(() => new LineSegments2(), []);
-  const matObj = useMemo(() => new LineMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 1,
-    linewidth: BASE_LINE_WIDTH * lineWidth,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-    resolution: new THREE.Vector2(size.width, size.height),
-  }), []);
 
-  const { positions, baseColors, edgeRanges } = useMemo(() => {
+  // Store shader ref for uniform updates
+  const shaderRef = useRef<THREE.WebGLProgramParametersWithUniforms | null>(null);
+
+  const matObj = useMemo(() => {
+    const mat = new LineMaterial({
+      vertexColors: true,
+      transparent: true,
+      opacity: 1,
+      linewidth: BASE_LINE_WIDTH * lineWidth,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      resolution: new THREE.Vector2(size.width, size.height),
+    });
+
+    // Inject GPU pulse into LineMaterial's shader
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = { value: 0 };
+      shaderRef.current = shader;
+
+      // Vertex shader: declare per-instance pulse attributes, pass as varyings
+      shader.vertexShader = shader.vertexShader.replace(
+        'void main() {',
+        `attribute float pulsePhase;
+         attribute float pulseStrength;
+         varying float vPulsePhase;
+         varying float vPulseStrength;
+         void main() {
+           vPulsePhase = pulsePhase;
+           vPulseStrength = pulseStrength;`,
+      );
+
+      // Fragment shader: declare uniforms/varyings
+      shader.fragmentShader = shader.fragmentShader.replace(
+        'void main() {',
+        `uniform float uTime;
+         varying float vPulsePhase;
+         varying float vPulseStrength;
+         void main() {`,
+      );
+
+      // Fragment shader: multiply diffuseColor by pulse wave after color_fragment
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+         float pSpeed = 1.5 + vPulseStrength * 2.0;
+         float pAmp = 0.15 + vPulseStrength * 0.25;
+         float wave = 1.0 + pAmp * sin(uTime * pSpeed + vPulsePhase);
+         diffuseColor.rgb *= wave;`,
+      );
+    };
+
+    return mat;
+  }, []);
+
+  const { positions, colors, pulsePhases, pulseStrengths } = useMemo(() => {
     const posArr: number[] = [];
     const colArr: number[] = [];
-    const ranges: { strength: number; phase: number }[] = [];
+    const phases: number[] = [];
+    const strengths: number[] = [];
     const baseColor = new THREE.Color(color);
     const dimColor = new THREE.Color(color).multiplyScalar(0.15);
 
@@ -239,68 +292,50 @@ function PulsingEdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity
       posArr.push(source.x, source.y, source.z, target.x, target.y, target.z);
       colArr.push(c.r * brightness, c.g * brightness, c.b * brightness,
                    c.r * brightness, c.g * brightness, c.b * brightness);
-      ranges.push({
-        strength: edge.strength ?? 0,
-        phase: source.x * 0.7 + target.y * 1.3,
-      });
+      phases.push(source.x * 0.7 + target.y * 1.3);
+      strengths.push(edge.strength ?? 0);
     }
     return {
       positions: new Float32Array(posArr),
-      baseColors: new Float32Array(colArr),
-      edgeRanges: ranges,
+      colors: new Float32Array(colArr),
+      pulsePhases: new Float32Array(phases),
+      pulseStrengths: new Float32Array(strengths),
     };
   }, [edges, nodeMap, color, baseOpacity, highlightOpacity, lineWidth, selectedNodeId, brightnessMult]);
-
-  // Animated color buffer — mutated every frame
-  const animColors = useRef(new Float32Array(0));
 
   useEffect(() => {
     if (!lineRef.current || positions.length === 0) return;
     const geom = new LineSegmentsGeometry();
     geom.setPositions(positions);
-    geom.setColors(baseColors);
+    geom.setColors(colors);
+
+    // Add per-instance pulse attributes for GPU animation
+    geom.setAttribute('pulsePhase',
+      new THREE.InstancedBufferAttribute(pulsePhases, 1));
+    geom.setAttribute('pulseStrength',
+      new THREE.InstancedBufferAttribute(pulseStrengths, 1));
+
     lineRef.current.geometry = geom;
-    animColors.current = new Float32Array(baseColors);
     return () => { geom.dispose(); };
-  }, [positions, baseColors]);
+  }, [positions, colors, pulsePhases, pulseStrengths]);
 
   useEffect(() => {
-    if (matRef.current) {
-      matRef.current.resolution.set(size.width, size.height);
-      matRef.current.linewidth = BASE_LINE_WIDTH * lineWidth;
-    }
-  }, [size, lineWidth]);
+    matObj.resolution.set(size.width, size.height);
+    matObj.linewidth = BASE_LINE_WIDTH * lineWidth;
+  }, [size, lineWidth, matObj]);
 
-  // Animate: rewrite color array and re-set on geometry each frame
+  // O(1) per frame: just update the time uniform
   useFrame(({ clock }) => {
-    if (!lineRef.current || edgeRanges.length === 0) return;
-    const t = clock.elapsedTime;
-    const arr = animColors.current;
-    if (arr.length !== baseColors.length) return;
-
-    for (let i = 0; i < edgeRanges.length; i++) {
-      const range = edgeRanges[i];
-      const pulseSpeed = 1.5 + range.strength * 2.0;
-      const pulseAmp = 0.15 + range.strength * 0.25;
-      const wave = 1.0 + pulseAmp * Math.sin(t * pulseSpeed + range.phase);
-
-      // Each edge has 2 vertices × 3 color components = 6 floats
-      const bi = i * 6;
-      for (let j = 0; j < 6; j++) {
-        arr[bi + j] = baseColors[bi + j] * wave;
-      }
+    if (shaderRef.current?.uniforms.uTime) {
+      shaderRef.current.uniforms.uTime.value = clock.elapsedTime;
     }
-
-    // Re-set colors on the geometry (LineSegmentsGeometry handles interleaving)
-    const geom = lineRef.current.geometry as LineSegmentsGeometry;
-    geom.setColors(arr);
   });
 
   if (positions.length === 0) return null;
 
   return (
     <primitive object={lineObj} ref={lineRef}>
-      <primitive object={matObj} ref={matRef} attach="material" />
+      <primitive object={matObj} attach="material" />
     </primitive>
   );
 }

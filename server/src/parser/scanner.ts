@@ -7,6 +7,8 @@ export interface ScannedFile {
   relativePath: string;
   extension: string;
   size: number;
+  /** File modification time (ms since epoch) for incremental parsing cache */
+  mtimeMs: number;
 }
 
 /** Maximum directory depth to prevent runaway recursion */
@@ -64,6 +66,7 @@ export function scanDirectory(rootDir: string): ScannedFile[] {
                 relativePath: path.relative(root, fullPath).replace(/\\/g, '/'),
                 extension: ext,
                 size: stat.size,
+                mtimeMs: stat.mtimeMs,
               });
             }
           } catch (err) {

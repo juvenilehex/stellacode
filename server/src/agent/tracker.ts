@@ -28,30 +28,17 @@ function parseConventional(message: string): { type: ConventionalType; scope?: s
   return { type: 'other', subject: message };
 }
 
-// ── Agent detection ──
-
-const AGENT_PATTERNS = [
-  { pattern: /claude/i, name: 'claude-code' },
-  { pattern: /copilot/i, name: 'copilot' },
-  { pattern: /cursor/i, name: 'cursor' },
-  { pattern: /aider/i, name: 'aider' },
-  { pattern: /codeium/i, name: 'codeium' },
-  { pattern: /tabnine/i, name: 'tabnine' },
-  { pattern: /windsurf|cascade/i, name: 'windsurf' },
-  { pattern: /devin-ai|devin/i, name: 'devin' },
-  { pattern: /amazon\s*q|aws-q/i, name: 'amazon-q' },
-  { pattern: /gemini/i, name: 'gemini' },
-  { pattern: /\bbolt\b|stackblitz/i, name: 'bolt' },
-];
+// ── Agent detection (patterns from CONFIG for extensibility) ──
 
 function detectAgent(author: string, message: string): { isAgent: boolean; agentName?: string } {
+  const patterns = CONFIG.agentPatterns;
   // Check author name
-  for (const { pattern, name } of AGENT_PATTERNS) {
+  for (const { pattern, name } of patterns) {
     if (pattern.test(author)) return { isAgent: true, agentName: name };
   }
   // Check Co-Authored-By in message
   if (message.includes('Co-Authored-By')) {
-    for (const { pattern, name } of AGENT_PATTERNS) {
+    for (const { pattern, name } of patterns) {
       if (pattern.test(message)) return { isAgent: true, agentName: name };
     }
   }

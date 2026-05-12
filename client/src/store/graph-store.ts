@@ -15,6 +15,8 @@ export type FilterKey = 'directory' | 'typescript' | 'javascript' | 'python' | '
 interface GraphState {
   data: GraphData | null;
   nodeMap: Map<string, GraphNode>;
+  /** Pre-computed adjacency map: nodeId → Set of connected nodeIds (O(1) lookup) */
+  adjacencyMap: Map<string, Set<string>>;
   loading: boolean;
   error: string | null;
   selectedNodeId: string | null;
@@ -54,6 +56,7 @@ interface GraphState {
 export const useGraphStore = create<GraphState>((set, get) => ({
   data: null,
   nodeMap: new Map(),
+  adjacencyMap: new Map(),
   loading: true,
   error: null,
   selectedNodeId: null,
@@ -72,24 +75,27 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     for (const node of data.nodes) {
       nodeMap.set(node.id, node);
     }
-    set(s => ({ data, nodeMap, loading: false, error: null, graphVersion: s.graphVersion + 1, entryProgress: 0, entryActive: true }));
+    // Pre-compute adjacency map for O(1) connected node lookup
+    const adjacencyMap = new Map<string, Set<string>>();
+    for (const edge of data.edges) {
+      if (!adjacencyMap.has(edge.source)) adjacencyMap.set(edge.source, new Set());
+      if (!adjacencyMap.has(edge.target)) adjacencyMap.set(edge.target, new Set());
+      adjacencyMap.get(edge.source)!.add(edge.target);
+      adjacencyMap.get(edge.target)!.add(edge.source);
+    }
+    set(s => ({ data, nodeMap, adjacencyMap, loading: false, error: null, graphVersion: s.graphVersion + 1, entryProgress: 0, entryActive: true }));
   },
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error, loading: false }),
 
   selectNode: (nodeId) => {
-    const { data } = get();
-    if (!nodeId || !data) {
+    if (!nodeId || !get().data) {
       set({ selectedNodeId: null, connectedNodeIds: new Set() });
       return;
     }
 
-    const connected = new Set<string>();
-    for (const edge of data.edges) {
-      if (edge.source === nodeId) connected.add(edge.target);
-      if (edge.target === nodeId) connected.add(edge.source);
-    }
-
+    // O(1) lookup via pre-computed adjacency map (was O(E) edge scan)
+    const connected = get().adjacencyMap.get(nodeId) ?? new Set();
     set({ selectedNodeId: nodeId, connectedNodeIds: connected });
   },
 
@@ -121,9 +127,17 @@ export const useGraphStore = create<GraphState>((set, get) => ({
       const graphData: GraphData = await graphRes.json();
       const nodeMap = new Map<string, GraphNode>();
       for (const node of graphData.nodes) nodeMap.set(node.id, node);
+      const adjacencyMap = new Map<string, Set<string>>();
+      for (const edge of graphData.edges) {
+        if (!adjacencyMap.has(edge.source)) adjacencyMap.set(edge.source, new Set());
+        if (!adjacencyMap.has(edge.target)) adjacencyMap.set(edge.target, new Set());
+        adjacencyMap.get(edge.source)!.add(edge.target);
+        adjacencyMap.get(edge.target)!.add(edge.source);
+      }
       set(s => ({
         data: graphData,
         nodeMap,
+        adjacencyMap,
         loading: false,
         error: null,
         targetPath: trimmed,
