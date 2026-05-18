@@ -12,7 +12,7 @@ export const CONFIG = {
 
   watcher: {
     /** File extensions to watch for changes */
-    extensions: /\.(ts|tsx|js|jsx|mjs|cjs|py)$/,
+    extensions: /\.(ts|tsx|js|jsx|mjs|cjs|py|go)$/,
     /** Directories to ignore during file watching */
     ignorePatterns: [
       '**/node_modules/**',
@@ -63,7 +63,7 @@ export const CONFIG = {
     ]),
     /** File extensions to parse */
     supportedExtensions: new Set([
-      '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py',
+      '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go',
     ]),
   },
 

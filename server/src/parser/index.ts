@@ -1,6 +1,7 @@
 import { scanDirectory, type ScannedFile } from './scanner.js';
 import { parseTsFile } from './ts-parser.js';
 import { parsePythonFile } from './python-parser.js';
+import { parseGoFile } from './go-parser.js';
 import type { ParsedFile } from './types.js';
 
 export type { ParsedFile, ParsedSymbol, ParsedImport } from './types.js';
@@ -31,6 +32,7 @@ const parserRegistry = new Map<string, ParserFn>([
   ['.mjs', parseTsFile],
   ['.cjs', parseTsFile],
   ['.py', parsePythonFile],
+  ['.go', parseGoFile],
 ]);
 
 export { parserRegistry };

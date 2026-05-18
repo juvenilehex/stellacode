@@ -17,7 +17,7 @@ export interface ParsedImport {
 export interface ParsedFile {
   path: string;
   relativePath: string;
-  language: 'typescript' | 'javascript' | 'python' | 'unknown';
+  language: 'typescript' | 'javascript' | 'python' | 'go' | 'unknown';
   symbols: ParsedSymbol[];
   imports: ParsedImport[];
   lineCount: number;
