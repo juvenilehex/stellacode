@@ -44,6 +44,13 @@
     "url": "git+https://github.com/juvenilehex/stellacode.git"
   },
   "homepage": "https://github.com/juvenilehex/stellacode#readme",
+  "bugs": {
+    "url": "https://github.com/juvenilehex/stellacode/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/juvenilehex"
+  },
   "keywords": [
     "code-visualization",
     "code-observatory",
