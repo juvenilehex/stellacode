@@ -3,6 +3,7 @@ import type { ParsedFile } from '../parser/types.js';
 import type { GraphNode, GraphEdge, GraphData } from './types.js';
 import type { GitCoChange } from '../agent/types.js';
 import { computeLayout, type LayoutOptions } from './layout.js';
+import { NodeType, EdgeType, detectLanguage } from '../domain.js';
 
 export interface BuildGraphOptions {
   coChanges?: GitCoChange[];
