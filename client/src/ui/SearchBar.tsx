@@ -33,12 +33,16 @@ export function SearchBar() {
     <div className="pointer-events-auto">
       <div className="relative">
         <input
-          type="text"
+          type="search"
           value={query}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           onBlur={() => { blurTimer.current = setTimeout(() => setOpen(false), 200); }}
           placeholder="Search files..."
+          aria-label="Search files in the codebase"
+          role="combobox"
+          aria-expanded={open && results.length > 0}
+          aria-autocomplete="list"
           className="w-64 px-3 py-1.5 rounded-md text-xs outline-none"
           style={{
             background: C.panelBg,
