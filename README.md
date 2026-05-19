@@ -59,8 +59,8 @@ Open http://localhost:3001 and enter the path to any project.
 ### Code Structure
 - 3D force-directed graph with golden ratio spiral layout
 - Files as stars, directories as diamonds, imports as constellation lines
-- Language detection (TypeScript, JavaScript, Python) with color coding
-  > Currently supports TypeScript, JavaScript, and Python. Want another language? [Let us know on Discord.](https://discord.gg/VGQJSda5eZ)
+- Language detection (TypeScript, JavaScript, Python, Go) with color coding
+  > Currently supports TypeScript, JavaScript, Python, and Go. Want another language? [Let us know on Discord.](https://discord.gg/VGQJSda5eZ)
 - Search, filter by language, click to inspect
 
 ### Git Intelligence
@@ -142,7 +142,7 @@ Data flow:
 | State | Zustand |
 | CSS | Tailwind CSS 4 |
 | Server | Express 5 + ws + chokidar |
-| Parser | Regex-based (TS/JS/Python) |
+| Parser | Regex-based (TS/JS/Python/Go) |
 
 ## API
 
