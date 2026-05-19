@@ -246,6 +246,11 @@ export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => Inte
     res.json(ctx.broadcaster.usageTracker.getInsights());
   });
 
+  // L2=8: Quality timeseries trend
+  router.get('/feedback/quality-trend', (_req, res) => {
+    res.json(ctx.broadcaster.usageTracker.getQualityTrend());
+  });
+
   // Relayout API
   router.post('/relayout', (req, res) => {
     const { dirCohesion } = req.body ?? {};

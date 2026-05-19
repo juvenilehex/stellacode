@@ -184,6 +184,9 @@ setInterval(() => {
 const server = http.createServer(app);
 const broadcaster = new WsBroadcaster(server);
 
+// L2=8: Initialize quality timeseries persistence
+broadcaster.usageTracker.initTimeseries(path.join(targetDir, '.stellacode', 'data'));
+
 // ── Usage tracking middleware (L2) ──
 app.use((req, _res, next) => {
   if (req.path.startsWith('/api/')) {

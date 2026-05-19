@@ -211,4 +211,111 @@ export class UsageTracker {
       insights,
     };
   }
+
+  // =====================================================================
+  // L2=8: Quality Timeseries — 시계열 영속 + 추세 분석
+  // =====================================================================
+
+  private timeseriesPath: string | null = null;
+  private snapshotInterval = 10; // 10세션마다 스냅샷
+  private lastSnapshotAt = 0;
+
+  /** Initialize timeseries persistence. Call once at server start. */
+  initTimeseries(dataDir: string): void {
+    const fs = require('fs');
+    const path = require('path');
+    const dir = path.join(dataDir, 'learning');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    this.timeseriesPath = path.join(dir, 'quality_timeseries.jsonl');
+  }
+
+  /** Record a quality snapshot if interval reached. Called on disconnect. */
+  maybeRecordSnapshot(): void {
+    const completed = Array.from(this.sessions.values()).filter(s => s.disconnectedAt !== null);
+    if (completed.length - this.lastSnapshotAt < this.snapshotInterval) return;
+    this.lastSnapshotAt = completed.length;
+
+    if (!this.timeseriesPath) return;
+
+    const recent = completed.slice(-this.snapshotInterval);
+    const avgDuration = recent.reduce((s, r) => s + (r.durationMs ?? 0), 0) / recent.length;
+    const quickExits = recent.filter(s => s.durationMs !== null && s.durationMs < QUICK_EXIT_THRESHOLD_MS);
+    const quickExitRate = quickExits.length / recent.length;
+
+    // Feature diversity
+    const featureSet = new Set<string>();
+    for (const s of recent) {
+      for (const f of s.featuresAccessed) featureSet.add(f);
+    }
+
+    const snapshot = {
+      ts: new Date().toISOString(),
+      completed_sessions: completed.length,
+      avg_duration_ms: Math.round(avgDuration),
+      quick_exit_rate: Math.round(quickExitRate * 1000) / 1000,
+      feature_diversity: featureSet.size,
+      features_accessed: Array.from(featureSet),
+    };
+
+    try {
+      const fs = require('fs');
+      fs.appendFileSync(this.timeseriesPath, JSON.stringify(snapshot) + '\n', 'utf-8');
+    } catch (e) {
+      // Non-blocking — timeseries is supplementary
+    }
+  }
+
+  /** L2=8: Analyze quality trend from persisted timeseries. */
+  getQualityTrend(): { trend: string; snapshots: number; detail: string } {
+    if (!this.timeseriesPath) {
+      return { trend: 'no_data', snapshots: 0, detail: 'Timeseries not initialized' };
+    }
+
+    let lines: string[];
+    try {
+      const fs = require('fs');
+      const raw = fs.readFileSync(this.timeseriesPath, 'utf-8') as string;
+      lines = raw.trim().split('\n').filter((l: string) => l.length > 0);
+    } catch {
+      return { trend: 'no_data', snapshots: 0, detail: 'No timeseries file' };
+    }
+
+    if (lines.length < 3) {
+      return { trend: 'insufficient', snapshots: lines.length, detail: 'Need >= 3 snapshots' };
+    }
+
+    const snapshots = lines.map((l: string) => JSON.parse(l));
+    const recent = snapshots.slice(-3);
+    const older = snapshots.slice(0, -3);
+
+    if (older.length === 0) {
+      return { trend: 'stable', snapshots: snapshots.length, detail: 'Only recent data available' };
+    }
+
+    const recentAvgDuration = recent.reduce((s: number, r: any) => s + r.avg_duration_ms, 0) / recent.length;
+    const olderAvgDuration = older.reduce((s: number, r: any) => s + r.avg_duration_ms, 0) / older.length;
+
+    const recentQuickExit = recent.reduce((s: number, r: any) => s + r.quick_exit_rate, 0) / recent.length;
+    const olderQuickExit = older.reduce((s: number, r: any) => s + r.quick_exit_rate, 0) / older.length;
+
+    let trend = 'stable';
+    let detail = '';
+
+    if (recentAvgDuration < olderAvgDuration * 0.7) {
+      trend = 'declining';
+      detail = `Session duration dropped: ${Math.round(olderAvgDuration)}ms → ${Math.round(recentAvgDuration)}ms`;
+    } else if (recentQuickExit > olderQuickExit + 0.15) {
+      trend = 'declining';
+      detail = `Quick-exit rate increased: ${(olderQuickExit * 100).toFixed(0)}% → ${(recentQuickExit * 100).toFixed(0)}%`;
+    } else if (recentAvgDuration > olderAvgDuration * 1.2) {
+      trend = 'improving';
+      detail = `Session duration increased: ${Math.round(olderAvgDuration)}ms → ${Math.round(recentAvgDuration)}ms`;
+    } else {
+      detail = 'Metrics within normal range';
+    }
+
+    return { trend, snapshots: snapshots.length, detail };
+  }
 }

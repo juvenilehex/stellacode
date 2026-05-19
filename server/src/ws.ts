@@ -54,6 +54,8 @@ export class WsBroadcaster {
 
       ws.on('close', () => {
         this.usageTracker.onDisconnect(sessionId);
+        // L2=8: Record quality snapshot on disconnect
+        this.usageTracker.maybeRecordSnapshot();
       });
 
       // Reject oversized messages (1MB limit).
