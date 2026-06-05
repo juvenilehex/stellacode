@@ -159,11 +159,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         body: JSON.stringify({ dirCohesion }),
       });
       if (!res.ok) {
-        console.warn('[Relayout] Server returned', res.status);
+        // 조용히 삼키지 않는다: 실패를 error 상태로 표출(retarget과 동일 패턴).
+        // debounce 슬라이더라 동일 메시지 중복 set은 생략(플리커 방지).
+        const msg = `레이아웃 재계산 실패 (HTTP ${res.status})`;
+        if (get().error !== msg) set({ error: msg });
+        return;
       }
-      // Graph update will come via WebSocket broadcast
+      // 성공 시 그래프 갱신은 WebSocket broadcast로 도착
     } catch (err) {
-      console.warn('[Relayout] Network error:', err);
+      const msg = err instanceof Error ? err.message : '레이아웃 재계산 네트워크 오류';
+      if (get().error !== msg) set({ error: msg });
     }
   },
 
