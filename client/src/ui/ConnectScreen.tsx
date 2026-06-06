@@ -126,6 +126,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
   const [targetPath, setTargetPath] = useState('');
   const [error, setError] = useState('');
   const [statusText, setStatusText] = useState('');
+  const [detectedTarget, setDetectedTarget] = useState('');
   const [titleVisible, setTitleVisible] = useState(false);
   const [subtitleVisible, setSubtitleVisible] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
@@ -140,15 +141,49 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/target')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled || !data || typeof data.target !== 'string') return;
+        setDetectedTarget(data.target);
+        setTargetPath(current => current.trim() ? current : data.target);
+      })
+      .catch(() => {
+        // The manual path flow still works if the target endpoint is unavailable.
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
   const handleConnect = useCallback(async () => {
     const trimmed = targetPath.trim();
     if (!trimmed) return;
+    const opensDetectedTarget = Boolean(detectedTarget && trimmed === detectedTarget);
 
     setError('');
     setPhase('connecting');
-    setStatusText('Scanning directory...');
+    setStatusText(opensDetectedTarget ? 'Opening current project...' : 'Scanning directory...');
 
     try {
+      if (opensDetectedTarget) {
+        const statsRes = await fetch('/api/stats');
+        if (!statsRes.ok) throw new Error(`HTTP ${statsRes.status}`);
+        const stats = await statsRes.json();
+
+        useGraphStore.getState().setTargetPath(trimmed);
+        setStatusText(`${stats.totalFiles} files, ${stats.totalEdges} edges`);
+        setPhase('connected');
+
+        setTimeout(() => {
+          setPhase('done');
+          setTimeout(onConnected, 800);
+        }, 900);
+        return;
+      }
+
       const res = await fetch('/api/target', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -175,7 +210,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
       setPhase('idle');
       setStatusText('');
     }
-  }, [targetPath, onConnected]);
+  }, [detectedTarget, targetPath, onConnected]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && phase === 'idle') handleConnect();
@@ -183,6 +218,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
 
   const isIdle = phase === 'idle';
   const isDone = phase === 'done';
+  const opensDetectedTarget = Boolean(detectedTarget && targetPath.trim() === detectedTarget);
 
   return (
     <div
@@ -255,7 +291,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
             onChange={(e) => setTargetPath(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={!isIdle}
-            placeholder="C:\path\to\your\project"
+            placeholder={String.raw`C:\path\to\your\project`}
             className="w-full px-4 py-2 text-sm rounded-none border outline-none transition-colors duration-300 disabled:opacity-50"
             style={{
               background: 'rgba(180, 180, 200, 0.03)',
@@ -281,7 +317,7 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
                   pointerEvents: targetPath.trim() ? 'auto' : 'none',
                 }}
               >
-                Connect
+                {opensDetectedTarget ? 'Open Current' : 'Connect'}
               </button>
             )}
 

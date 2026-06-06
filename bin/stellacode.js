@@ -8,7 +8,7 @@ import { existsSync, statSync, readFileSync } from 'node:fs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// ── Help ──
+// Help
 function printHelp() {
   console.log(`
   stellacode - Code Observatory
@@ -27,7 +27,7 @@ function printHelp() {
 `);
 }
 
-// ── Parse args ──
+// Parse args
 const args = process.argv.slice(2);
 let targetDir = '.';
 let port = process.env.STELLA_PORT || '3001';
@@ -64,7 +64,7 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-// ── Resolve and validate target ──
+// Resolve and validate target
 targetDir = resolve(targetDir);
 
 if (!existsSync(targetDir) || !statSync(targetDir).isDirectory()) {
@@ -72,14 +72,14 @@ if (!existsSync(targetDir) || !statSync(targetDir).isDirectory()) {
   process.exit(1);
 }
 
-// ── Locate server entry point ──
+// Locate server entry point
 const serverEntry = join(__dirname, '..', 'server', 'dist', 'index.js');
 if (!existsSync(serverEntry)) {
   console.error('[stellacode] Error: Server build not found. Run `npm run build` first.');
   process.exit(1);
 }
 
-// ── Start server ──
+// Start server
 console.log(`[stellacode] Target: ${targetDir}`);
 console.log(`[stellacode] Port: ${port}`);
 
@@ -93,7 +93,7 @@ const child = spawn(process.execPath, [serverEntry, targetDir], {
   stdio: 'inherit',
 });
 
-// ── Auto-open browser ──
+// Auto-open browser
 if (autoOpen) {
   // Small delay to let the server start
   setTimeout(async () => {
@@ -114,7 +114,7 @@ if (autoOpen) {
   }, 1500);
 }
 
-// ── Graceful shutdown ──
+// Graceful shutdown
 function shutdown() {
   child.kill('SIGTERM');
 }

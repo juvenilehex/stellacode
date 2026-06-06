@@ -52,10 +52,10 @@ export const COLORS = {
   branchClean: '#7EDCCC',
   branchDirty: '#FFD866',
 
-  // Bloom — restrained: only bright elements glow
+  // Bloom — bright node colors should breathe without washing out the scene
   bloomStrength: 0.35,
   bloomRadius: 0.4,
-  bloomThreshold: 0.85,
+  bloomThreshold: 0.62,
 } as const;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

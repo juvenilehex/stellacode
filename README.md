@@ -11,9 +11,9 @@
 npx stellacode
 ```
 
-> One command. No install. Open http://localhost:3001 and point it at any project.
+> Run it inside a project. StellaCode opens a local observatory for that codebase.
 
-![StellaCode constellation view](screenshots/03-constellation-view.png)
+![StellaCode constellation view](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/03-constellation-view.png)
 
 ## Why
 
@@ -29,7 +29,22 @@ If you've been staring at strings of text in a dark room for hours, we hope watc
 
 ## Quick Start
 
-Or clone and run locally:
+Run it from the project you want to observe:
+
+```bash
+cd your-project
+npx stellacode
+```
+
+Open http://localhost:3001 and choose the current project.
+
+To observe another directory:
+
+```bash
+npx stellacode /path/to/another/project
+```
+
+Or clone StellaCode and run it locally:
 
 ```bash
 git clone https://github.com/juvenilehex/stellacode.git
@@ -38,10 +53,8 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3001 and enter the path to any project.
-
-![StellaCode start screen](screenshots/stellacode-start.png)
-*The landing screen — enter a path and watch your code come alive.*
+![StellaCode start screen](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/stellacode-start.png)
+*The landing screen: open the current project or enter another path.*
 
 ## What You See
 
@@ -95,7 +108,7 @@ Press `O` to hide all UI and watch the stars quietly. Just your code, breathing 
 ### Capture
 Press `3` to save a PNG screenshot of your constellation.
 
-![StellaCode inspecting a file](screenshots/stellacode-detail.png)
+![StellaCode inspecting a file](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/stellacode-detail.png)
 *Click any star to see its symbols, connections, and place in the constellation.*
 
 ## Controls

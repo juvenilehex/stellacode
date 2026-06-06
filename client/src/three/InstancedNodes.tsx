@@ -10,17 +10,11 @@ import { getNodeColor, getNodeFilterKey, getNodeAgeColor, getNodeAgentColor, get
 import type { NodeStyleKey } from '../store/settings-store';
 import { getTheme } from '../utils/themes';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { glowTexture } from './glowTexture';
 
 const _dummy = new THREE.Object3D();
 const _color = new THREE.Color();
-
-/** Store-level memoized selector for age color normalization data */
-const selectAgeMetas = (s: { data: { nodes: GraphNode[] } | null }) => {
-  if (!s.data) return [];
-  return s.data.nodes
-    .filter(n => n.meta?.firstCommit)
-    .map(n => ({ firstCommit: n.meta!.firstCommit as number }));
-};
+const _haloColor = new THREE.Color();
 
 /** Map node type+language to NodeStyleKey */
 function getNodeStyleKey(type: string, language?: string): NodeStyleKey {
@@ -52,7 +46,9 @@ export function InstancedNodes({ nodes }: { nodes: GraphNode[] }) {
 /** Renders a single InstancedMesh for a group of same-geometry nodes */
 function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'sphere' | 'octahedron' }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
+  const haloRef = useRef<THREE.InstancedMesh>(null);
   const initedRef = useRef(false);
+  const { camera } = useThree();
 
   const {
     selectedNodeId, connectedNodeIds, hoveredNodeId,
@@ -94,9 +90,12 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
     return map;
   }, [nodes]);
 
-  // Age color: store-level selector (computed once per graph update, shared across instances)
-  const storeAgeMetas = useGraphStore(selectAgeMetas);
-  const allMetas = colorMode === 'age' ? storeAgeMetas : [];
+  const allMetas = useMemo(() => {
+    if (colorMode !== 'age') return [];
+    return (allNodes ?? nodes)
+      .filter(n => n.meta?.firstCommit)
+      .map(n => ({ firstCommit: n.meta!.firstCommit as number }));
+  }, [allNodes, colorMode, nodes]);
 
   // Reset color init when custom colors or color mode change
   const prevColorsRef = useRef(customColors);
@@ -110,6 +109,7 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
   // Per-frame update: matrices + colors via setColorAt
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
+    const halo = haloRef.current;
     if (!mesh) return;
 
     // First frame or color/mode change: initialize all instance colors
@@ -124,6 +124,13 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
           _color.set(getNodeColor(n.type, n.language, customColors));
         }
         mesh.setColorAt(i, _color);
+        if (halo) halo.setColorAt(i, _color);
+      }
+      const meshMaterials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      meshMaterials.forEach(material => { material.needsUpdate = true; });
+      if (halo) {
+        const haloMaterials = Array.isArray(halo.material) ? halo.material : [halo.material];
+        haloMaterials.forEach(material => { material.needsUpdate = true; });
       }
       initedRef.current = true;
     }
@@ -148,6 +155,7 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
         _dummy.scale.setScalar(0);
         _dummy.updateMatrix();
         mesh.setMatrixAt(i, _dummy.matrix);
+        if (halo) halo.setMatrixAt(i, _dummy.matrix);
         continue;
       }
 
@@ -169,6 +177,7 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
           _dummy.scale.setScalar(0);
           _dummy.updateMatrix();
           mesh.setMatrixAt(i, _dummy.matrix);
+          if (halo) halo.setMatrixAt(i, _dummy.matrix);
           continue;
         }
         entryScale = reveal * (2.0 - reveal) * (reveal < 0.7 ? 1.3 : 1.0);
@@ -192,6 +201,7 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
       const scale = baseScale * pulse * breathe * entryScale;
 
       _dummy.position.set(node.x, node.y, node.z);
+      _dummy.quaternion.identity();
       _dummy.scale.setScalar(scale);
       _dummy.updateMatrix();
       mesh.setMatrixAt(i, _dummy.matrix);
@@ -219,11 +229,38 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
         }
       }
       mesh.setColorAt(i, _color);
+
+      if (halo) {
+        const haloPulse = isSelected
+          ? 5.2 + Math.sin(t * 3 + phase) * 0.8
+          : isHovered
+            ? 4.6 + Math.sin(t * 4 + phase) * 0.6
+            : isActive
+              ? 5.0 + Math.sin(t * 6 + phase) * 0.7
+              : 3.6 + cFactor * 1.8 + Math.sin(t * 1.2 + phase) * 0.15;
+        const haloScale = baseScale * haloPulse * entryScale;
+
+        _dummy.position.set(node.x, node.y, node.z);
+        _dummy.quaternion.copy(camera.quaternion);
+        _dummy.scale.set(haloScale, haloScale, 1);
+        _dummy.updateMatrix();
+        halo.setMatrixAt(i, _dummy.matrix);
+
+        const haloBoost = isDimmed ? 0.35 : isSelected || isHovered || isActive ? 1.45 : 0.95 + cFactor * 0.9;
+        _haloColor.copy(_color).multiplyScalar(haloBoost);
+        halo.setColorAt(i, _haloColor);
+      }
     }
 
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) {
       mesh.instanceColor.needsUpdate = true;
+    }
+    if (halo) {
+      halo.instanceMatrix.needsUpdate = true;
+      if (halo.instanceColor) {
+        halo.instanceColor.needsUpdate = true;
+      }
     }
   });
 
@@ -249,31 +286,46 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
     document.body.style.cursor = 'auto';
   }, [hoverNode]);
 
+  const disableHaloRaycast = useCallback((_raycaster: THREE.Raycaster, _intersects: THREE.Intersection[]) => {}, []);
+
   const geom = useMemo(() => {
     if (geometry === 'sphere') return new THREE.SphereGeometry(1, 12, 12);
     return new THREE.OctahedronGeometry(1, 0);
   }, [geometry]);
+  const haloGeom = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geom, undefined, count]}
-      onClick={handleClick}
-      onPointerOver={handlePointerOver}
-      onPointerOut={handlePointerOut}
-      frustumCulled={false}
-    >
-      <meshStandardMaterial
-        color="#ffffff"
-        emissive="#ffffff"
-        emissiveIntensity={0.25 + themeScene.nodeEmissiveBoost}
-        roughness={0.5}
-        metalness={0.15}
-        transparent
-        opacity={1.0}
-        toneMapped={false}
-      />
-    </instancedMesh>
+    <>
+      <instancedMesh
+        ref={haloRef}
+        args={[haloGeom, undefined, count]}
+        frustumCulled={false}
+        raycast={disableHaloRaycast}
+      >
+        <meshBasicMaterial
+          map={glowTexture}
+          transparent
+          opacity={0.18 + themeScene.nodeEmissiveBoost * 0.25}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={meshRef}
+        args={[geom, undefined, count]}
+        onClick={handleClick}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
+        frustumCulled={false}
+      >
+        <meshBasicMaterial
+          transparent
+          opacity={1.0}
+          toneMapped={false}
+        />
+      </instancedMesh>
+    </>
   );
 }
 

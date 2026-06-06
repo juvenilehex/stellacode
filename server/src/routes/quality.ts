@@ -212,8 +212,7 @@ export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => Inte
     ctx.setTargetDir(resolved);
     console.log(`[StellaCode] Target changed: ${resolved}`);
 
-    // Restart watchers (handled by ServerContext)
-    ctx.getActiveWatcher().close();
+    // Restart watcher (handled by ServerContext)
     ctx.getLiveWatcher().updateTarget(resolved);
 
     ctx.agentTracker.updateTarget(resolved);

@@ -240,6 +240,7 @@ const ctx: ServerContext = {
   getGraphData: () => graphData,
   getTargetDir: () => targetDir,
   setTargetDir: (dir) => {
+    activeWatcher.close();
     targetDir = dir;
     clearParseCache(); // New target = new file set, invalidate cache
     activeWatcher = createWatcher(dir, onFileChange);

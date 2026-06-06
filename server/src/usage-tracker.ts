@@ -1,5 +1,8 @@
 /** Usage statistics tracker (L2 quality loop — in-app feedback collection) */
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 export interface SessionRecord {
   /** Session ID (incrementing) */
   id: number;
@@ -217,13 +220,11 @@ export class UsageTracker {
   // =====================================================================
 
   private timeseriesPath: string | null = null;
-  private snapshotInterval = 10; // 10세션마다 스냅샷
+  private snapshotInterval = 10;
   private lastSnapshotAt = 0;
 
   /** Initialize timeseries persistence. Call once at server start. */
   initTimeseries(dataDir: string): void {
-    const fs = require('fs');
-    const path = require('path');
     const dir = path.join(dataDir, 'learning');
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -260,10 +261,9 @@ export class UsageTracker {
     };
 
     try {
-      const fs = require('fs');
       fs.appendFileSync(this.timeseriesPath, JSON.stringify(snapshot) + '\n', 'utf-8');
     } catch (e) {
-      // Non-blocking — timeseries is supplementary
+      console.warn('[usage-tracker] timeseries write failed:', (e as Error).message);
     }
   }
 
@@ -275,7 +275,6 @@ export class UsageTracker {
 
     let lines: string[];
     try {
-      const fs = require('fs');
       const raw = fs.readFileSync(this.timeseriesPath, 'utf-8') as string;
       lines = raw.trim().split('\n').filter((l: string) => l.length > 0);
     } catch {
