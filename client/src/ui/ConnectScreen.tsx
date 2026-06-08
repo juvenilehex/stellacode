@@ -130,7 +130,10 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
   const [titleVisible, setTitleVisible] = useState(false);
   const [subtitleVisible, setSubtitleVisible] = useState(false);
   const [formVisible, setFormVisible] = useState(false);
+  const [userInteracted, setUserInteracted] = useState(false);
+  const [autoArmed, setAutoArmed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoFiredRef = useRef(false);
 
   useEffect(() => {
     // Cinematic sequence: overlapping fade-ins
@@ -161,6 +164,8 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
   const handleConnect = useCallback(async () => {
     const trimmed = targetPath.trim();
     if (!trimmed) return;
+    autoFiredRef.current = true; // disarm first-run auto-connect (covers manual + auto paths)
+    setAutoArmed(false);
     const opensDetectedTarget = Boolean(detectedTarget && trimmed === detectedTarget);
 
     setError('');
@@ -211,6 +216,33 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
       setStatusText('');
     }
   }, [detectedTarget, targetPath, onConnected]);
+
+  // Keep a live ref so the auto-connect timer always calls the latest handler.
+  const handleConnectRef = useRef(handleConnect);
+  useEffect(() => { handleConnectRef.current = handleConnect; }, [handleConnect]);
+
+  // Any real input interaction cancels the first-run auto-connect, so a user
+  // who wants to observe a different directory is never overridden.
+  const markInteracted = useCallback(() => {
+    setUserInteracted(true);
+    setAutoArmed(false);
+  }, []);
+
+  // First-run: the user already declared intent via `cd project && npx stellacode`,
+  // so once the server reports a valid detected target we auto-open it after the
+  // cinematic intro — the constellation blooms with no manual click. A failed
+  // auto-connect falls through handleConnect's catch back to the manual form.
+  useEffect(() => {
+    if (autoFiredRef.current || userInteracted) return;
+    if (!detectedTarget || phase !== 'idle') return;
+    if (targetPath.trim() !== detectedTarget) return;
+    setAutoArmed(true);
+    const t = setTimeout(() => {
+      if (autoFiredRef.current || userInteracted) return;
+      handleConnectRef.current();
+    }, 1800);
+    return () => clearTimeout(t);
+  }, [detectedTarget, userInteracted, phase, targetPath]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && phase === 'idle') handleConnect();
@@ -288,8 +320,9 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
             ref={inputRef}
             type="text"
             value={targetPath}
-            onChange={(e) => setTargetPath(e.target.value)}
+            onChange={(e) => { setTargetPath(e.target.value); markInteracted(); }}
             onKeyDown={handleKeyDown}
+            onPointerDown={markInteracted}
             disabled={!isIdle}
             placeholder={String.raw`C:\path\to\your\project`}
             className="w-full px-4 py-2 text-sm rounded-none border outline-none transition-colors duration-300 disabled:opacity-50"
@@ -334,6 +367,16 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
               </p>
             )}
           </div>
+
+          {/* Auto-connect hint — tells the user they can still pick another path */}
+          {autoArmed && isIdle && !error && (
+            <p
+              className="mt-2 text-[10px] text-center tracking-[0.15em] transition-opacity duration-500"
+              style={{ color: C.textSecondary, opacity: 0.6 }}
+            >
+              opening current project &mdash; type a path to choose another
+            </p>
+          )}
 
           {/* Error */}
           {error && (
