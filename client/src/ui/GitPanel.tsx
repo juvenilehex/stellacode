@@ -1,22 +1,41 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { COLORS, getCommitTypeColor, getCommitTypeLabel, getAgentColor } from '../utils/colors';
 import { useGraphStore } from '../store/graph-store';
 import type { GitStats, GitCommit } from '../types/agent';
 
+type GitTab = 'timeline' | 'types' | 'hot' | 'coupling';
+
 export function GitPanel() {
   const [stats, setStats] = useState<GitStats | null>(null);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<'timeline' | 'types' | 'hot' | 'coupling'>('timeline');
+  const [tab, setTab] = useState<GitTab>('timeline');
+  const userPickedTabRef = useRef(false);
   const graphVersion = useGraphStore(s => s.graphVersion);
 
   useEffect(() => {
     fetch('/api/git/stats')
       .then(r => r.ok ? r.json() : null)
-      .then(setStats)
+      .then((data: GitStats | null) => {
+        setStats(data);
+        // Lead with the unique insight: if hidden couplings exist, default the
+        // panel to the Co-change tab so the differentiated value surfaces first
+        // instead of a commodity commit timeline. Falls back to timeline when
+        // there's nothing to show, and never overrides a manual tab choice.
+        if (data && !userPickedTabRef.current) {
+          setTab(data.coChanges?.length ? 'coupling' : 'timeline');
+        }
+      })
       .catch((err) => console.warn('[GitPanel] Failed to fetch stats:', err));
   }, [graphVersion]);
 
   if (!stats || stats.totalCommits === 0) return null;
+
+  function pickTab(t: GitTab) {
+    userPickedTabRef.current = true;
+    setTab(t);
+  }
+
+  const couplingCount = stats.coChanges?.length ?? 0;
 
   return (
     <div className="pointer-events-auto">
@@ -47,6 +66,17 @@ export function GitPanel() {
               </span>
             ))}
         </div>
+
+        {/* Hidden-coupling badge — surfaces StellaCode's unique insight at a glance */}
+        {couplingCount > 0 && (
+          <span
+            className="ml-1 px-1.5 rounded text-[9px] font-mono"
+            style={{ background: `${COLORS.coChangeEdge}22`, color: COLORS.coChangeEdge }}
+            title={`${couplingCount} hidden coupling${couplingCount === 1 ? '' : 's'} — files that change together without imports`}
+          >
+            &#x22C8; {couplingCount}
+          </span>
+        )}
       </button>
 
       {/* Expanded panel */}
@@ -57,7 +87,7 @@ export function GitPanel() {
           {/* Tabs */}
           <div className="flex border-b text-[10px]" style={{ borderColor: COLORS.panelBorder }}>
             {(['timeline', 'types', 'hot', 'coupling'] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)}
+              <button key={t} onClick={() => pickTab(t)}
                 className="flex-1 px-2 py-1.5 capitalize"
                 style={{
                   color: tab === t ? COLORS.textPrimary : COLORS.textSecondary,
