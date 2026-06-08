@@ -1,7 +1,7 @@
 {
   "name": "stellacode",
   "version": "1.3.0",
-  "description": "Code Observatory - observe your codebase as a living constellation",
+  "description": "See what your AI agent changed and find hidden coupling debt — a local code observatory CLI with git timeline replay. No cloud, runs in your terminal.",
   "type": "module",
   "bin": {
     "stellacode": "bin/stellacode.js"
@@ -66,6 +66,11 @@
     "static-analysis",
     "git",
     "ai-agent",
+    "ai-coding",
+    "vibe-coding",
+    "technical-debt",
+    "codesee-alternative",
+    "code-comprehension",
     "code-structure",
     "dependency-graph",
     "co-change",

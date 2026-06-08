@@ -2,6 +2,8 @@
 
 **Code Observatory** -- observe your codebase as a living constellation.
 
+**See what your AI agent changed, surface hidden coupling debt (files that always change together but share no import), and replay your git history -- all local, in your terminal. No cloud, no code leaves your machine.**
+
 [![npm version](https://img.shields.io/npm/v/stellacode?color=CB3837&logo=npm)](https://www.npmjs.com/package/stellacode)
 [![CI](https://github.com/juvenilehex/stellacode/actions/workflows/ci.yml/badge.svg)](https://github.com/juvenilehex/stellacode/actions/workflows/ci.yml)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?logo=discord&logoColor=white)](https://discord.gg/VGQJSda5eZ)
