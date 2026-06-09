@@ -38,9 +38,7 @@ cd your-project
 npx stellacode
 ```
 
-Open http://localhost:3001 and choose the current project.
-
-To observe another directory:
+StellaCode opens your browser and the current project's constellation blooms automatically — no clicks. To observe a different directory instead, type a path on the start screen before it advances, or pass one on the command line:
 
 ```bash
 npx stellacode /path/to/another/project
@@ -56,7 +54,7 @@ npm run dev
 ```
 
 ![StellaCode start screen](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/stellacode-start.png)
-*The landing screen: open the current project or enter another path.*
+*The start screen auto-opens the current project; type a path to observe another instead.*
 
 ## What You See
 
