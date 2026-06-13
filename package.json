@@ -84,5 +84,8 @@
     "typescript",
     "webgl",
     "vite"
-  ]
+  ],
+  "overrides": {
+    "shell-quote": "^1.8.4"
+  }
 }
