@@ -9,6 +9,18 @@ import { reportCommand, registerReportHandler } from "./commands/report.js";
 import { registerGuildMemberAdd } from "./events/guildMemberAdd.js";
 import { registerMessageCreate } from "./events/messageCreate.js";
 
+// ── Process-level safety net ────────────────────────────────────
+// 핸들러/네트워크의 미처리 rejection이 봇 전체를 죽이지 않게 한다(Node 15+ 기본 종료).
+// unhandledRejection: 복구 가능한 비동기 오류(Discord/GitHub API 일시 실패) — 로그 후 생존.
+// uncaughtException: 런타임 상태 오염 가능 — 로그 후 exit(1)로 supervisor 재시작 유도(fail-loud).
+process.on("unhandledRejection", (reason) => {
+  console.error("[StellaCode bot] Unhandled rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[StellaCode bot] Uncaught exception — exiting for restart:", err);
+  process.exit(1);
+});
+
 // ── Env validation ──────────────────────────────────────────────
 const REQUIRED_ENV = [
   "DISCORD_TOKEN",
@@ -48,12 +60,15 @@ registerMessageCreate(client);
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user!.tag}`);
 
-  const rest = new REST().setToken(TOKEN);
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-    body: [reportCommand.toJSON()],
-  });
-
-  console.log("Slash commands registered");
+  try {
+    const rest = new REST().setToken(TOKEN);
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
+      body: [reportCommand.toJSON()],
+    });
+    console.log("Slash commands registered");
+  } catch (err) {
+    console.error("[StellaCode bot] Slash command registration failed:", err);
+  }
 });
 
 // ── Health server ───────────────────────────────────────────────
@@ -68,4 +83,7 @@ server.listen(HEALTH_PORT, () => {
 });
 
 // ── Login ───────────────────────────────────────────────────────
-client.login(TOKEN);
+client.login(TOKEN).catch((err) => {
+  console.error("[StellaCode bot] Login failed — exiting for restart:", err);
+  process.exit(1);
+});

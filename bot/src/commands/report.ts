@@ -93,11 +93,24 @@ export function registerReportHandler(client: Client): void {
 
       await interaction.deferReply({ ephemeral: true });
 
-      const issue = await createIssue(titleVal, body, ["bug", "from-discord"]);
+      try {
+        const issue = await createIssue(titleVal, body, ["bug", "from-discord"]);
 
-      await interaction.editReply({
-        embeds: [issueCreatedEmbed(issue.html_url, titleVal)],
-      });
+        await interaction.editReply({
+          embeds: [issueCreatedEmbed(issue.html_url, titleVal)],
+        });
+      } catch (err) {
+        // GitHub 이슈 생성 실패 시 무한 스피너 방지 — 사용자에게 명확히 안내(무음 금지)
+        console.error("[StellaCode bot] createIssue failed:", err);
+        try {
+          await interaction.editReply({
+            content:
+              "리포트 등록에 실패했습니다. 잠시 후 다시 시도해주세요. (GitHub 연동 오류)",
+          });
+        } catch (replyErr) {
+          console.error("[StellaCode bot] error reply also failed:", replyErr);
+        }
+      }
     }
   });
 }
