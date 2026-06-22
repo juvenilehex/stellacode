@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { COLORS } from '../utils/colors';
 
 interface AboutModalProps {
@@ -16,13 +16,60 @@ const METAPHORS = [
 ];
 
 export function AboutModal({ open, onClose }: AboutModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
+    // 열릴 때 트리거(직전 포커스)를 저장 — 닫을 때 복원한다.
+    const trigger = document.activeElement as HTMLElement | null;
+
+    // 패널 내부의 보이는·활성 focusable만 추림(disabled/hidden 제외).
+    const getFocusable = (): HTMLElement[] => {
+      const root = panelRef.current;
+      if (!root) return [];
+      return Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => el.offsetParent !== null);
+    };
+
+    // 초기 포커스: 첫 focusable(없으면 패널 자체).
+    (getFocusable()[0] ?? panelRef.current)?.focus();
+
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      // Tab 트랩: 포커스를 패널 안에 가둔다(배경 탈출 방지).
+      const items = getFocusable();
+      if (items.length === 0) {
+        e.preventDefault();
+        panelRef.current?.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      const inside = panelRef.current?.contains(active);
+      if (e.shiftKey) {
+        if (active === first || !inside) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !inside) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('keydown', handleKey);
+      // 닫을 때 트리거가 아직 DOM에 살아있을 때만 포커스 복원.
+      if (trigger && trigger.isConnected) trigger.focus();
+    };
   }, [open, onClose]);
 
   if (!open) return null;
@@ -34,7 +81,12 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
       onClick={onClose}
     >
       <div
-        className="relative w-[480px] max-w-[calc(100vw-32px)] max-h-[80vh] overflow-y-auto rounded-lg text-xs select-none"
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="StellaCode 정보"
+        tabIndex={-1}
+        className="relative w-[480px] max-w-[calc(100vw-32px)] max-h-[80vh] overflow-y-auto rounded-lg text-xs select-none outline-none"
         style={{ background: COLORS.panelBg, border: `1px solid ${COLORS.panelBorder}` }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -52,6 +104,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
           </div>
           <button
             onClick={onClose}
+            aria-label="닫기"
             className="text-sm px-1 hover:opacity-70"
             style={{ color: COLORS.textSecondary }}
           >
