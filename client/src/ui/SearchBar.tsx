@@ -41,7 +41,7 @@ export function SearchBar() {
           placeholder="Search files..."
           aria-label="Search files in the codebase"
           role="combobox"
-          aria-expanded={open && results.length > 0}
+          aria-expanded={open && !!query.trim() && !!data}
           aria-autocomplete="list"
           className="w-64 px-3 py-1.5 rounded-md text-xs outline-none"
           style={{
@@ -70,6 +70,17 @@ export function SearchBar() {
                 </span>
               </button>
             ))}
+          </div>
+        )}
+
+        {/* 빈 상태: data가 로드됐고(검색중·미로드 아님) 쿼리가 있는데 결과 0건일 때만
+            정직하게 '없음'을 표시 — 더미 데이터 없음, 무음 blank 제거. */}
+        {open && query.trim() && data && results.length === 0 && (
+          <div className="absolute top-full mt-1 w-full rounded-md overflow-hidden text-xs"
+            style={{ background: C.panelBg, border: `1px solid ${C.panelBorder}` }}>
+            <div className="px-3 py-2" style={{ color: C.textSecondary }}>
+              일치하는 파일 없음
+            </div>
           </div>
         )}
       </div>

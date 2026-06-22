@@ -12,6 +12,7 @@ import { Toolbar } from './ui/Toolbar';
 import { TimelineSlider } from './ui/TimelineSlider';
 import { ConnectScreen } from './ui/ConnectScreen';
 import { DraggablePanel } from './ui/DraggablePanel';
+import { ErrorBoundary } from './ui/ErrorBoundary';
 
 import { ThemeProvider } from './ui/ThemeProvider';
 import { useGraphData } from './hooks/useGraphData';
@@ -96,7 +97,11 @@ function Observatory() {
 
   return (
     <div className="w-full h-full relative" style={{ fontSize }}>
-      <Scene />
+      {/* WebGL/R3F 렌더 throw가 전체 앱을 white screen으로 언마운트시키지
+          않도록 3D 뷰만 격리. 사이드바·패널 등 주변 UI는 보존된다. */}
+      <ErrorBoundary label="3D 뷰">
+        <Scene />
+      </ErrorBoundary>
 
       {/* Observe mode: click anywhere to exit */}
       {observeMode && (
