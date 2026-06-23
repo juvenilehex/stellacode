@@ -194,6 +194,12 @@ function EdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpacity, lineW
     }
   }, [size, lineWidth]);
 
+  // <primitive object=>로 부착한 객체는 R3F가 auto-dispose하지 않는다(caller 소유).
+  // LineMaterial은 컴파일된 WebGL 셰이더 프로그램을 점유하므로 unmount 시 직접 해제 —
+  // edgePulse 토글로 배치가 리마운트될 때 셰이더가 누적돼 WebGL context loss로 가는 것을 방지.
+  // (geometry는 위 effect의 cleanup이 dispose. lineObj=Object3D는 GPU 리소스 없어 불요.)
+  useEffect(() => () => matObj.dispose(), [matObj]);
+
   if (positions.length === 0) return null;
 
   return (
@@ -323,6 +329,10 @@ function GPUPulsingEdgeBatch({ edges, nodeMap, color, baseOpacity, highlightOpac
     matObj.resolution.set(size.width, size.height);
     matObj.linewidth = BASE_LINE_WIDTH * lineWidth;
   }, [size, lineWidth, matObj]);
+
+  // <primitive object=>는 R3F auto-dispose 대상이 아님. onBeforeCompile로 셰이더를 주입한
+  // LineMaterial은 더 무거운 WebGL 프로그램을 점유 → unmount 시 직접 dispose(셰이더 누적 방지).
+  useEffect(() => () => matObj.dispose(), [matObj]);
 
   // O(1) per frame: just update the time uniform
   useFrame(({ clock }) => {
