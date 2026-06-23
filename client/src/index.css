@@ -93,3 +93,17 @@
 [data-theme="high-contrast"] ::-webkit-scrollbar-thumb:hover {
   background: rgba(200, 200, 220, 0.55);
 }
+
+/* prefers-reduced-motion (WCAG 2.3.3): OS '모션 줄이기' 설정 사용자를 위해 DOM/CSS
+   애니메이션·트랜지션을 사실상 즉시로 줄인다(scan-line/title-glow의 infinite shimmer
+   등 = 전정장애·멀미 유발). R3F/WebGL 캔버스 애니는 useReducedMotion.ts 훅이 별도로
+   처리하므로 이 CSS reset과 직교(상보). reduce 설정 사용자에만 적용 — 그 외 동작 불변.
+   0.01ms(0 아님): transitionend/animationend 이벤트를 보존해 JS 상태머신을 깨지 않음. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
