@@ -13,9 +13,14 @@ export function GitPanel() {
   const graphVersion = useGraphStore(s => s.graphVersion);
 
   useEffect(() => {
+    // graphVersion은 그래프 업데이트마다 bump → 이 effect가 반복 재발화한다.
+    // cancelled 가드 없이는 이전 요청이 늦게 도착해 최신 stats/tab을 덮는 race가
+    // 생긴다(형제 useGraphData와 동일 패턴). 응답 도착 시 stale면 상태 갱신을 막는다.
+    let cancelled = false;
     fetch('/api/git/stats')
       .then(r => r.ok ? r.json() : null)
       .then((data: GitStats | null) => {
+        if (cancelled) return;
         setStats(data);
         // Lead with the unique insight: if hidden couplings exist, default the
         // panel to the Co-change tab so the differentiated value surfaces first
@@ -25,7 +30,8 @@ export function GitPanel() {
           setTab(data.coChanges?.length ? 'coupling' : 'timeline');
         }
       })
-      .catch((err) => console.warn('[GitPanel] Failed to fetch stats:', err));
+      .catch((err) => { if (!cancelled) console.warn('[GitPanel] Failed to fetch stats:', err); });
+    return () => { cancelled = true; };
   }, [graphVersion]);
 
   if (!stats || stats.totalCommits === 0) return null;
