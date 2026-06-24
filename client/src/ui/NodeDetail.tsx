@@ -1,5 +1,5 @@
 import { useGraphStore } from '../store/graph-store';
-import { COLORS, getNodeColor } from '../utils/colors';
+import { getNodeColor } from '../utils/colors';
 import { useThemeColors } from '../hooks/useThemeColors';
 
 interface SymbolInfo {

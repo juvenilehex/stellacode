@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useGraphStore } from '../store/graph-store';
-import { COLORS } from '../utils/colors';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { AboutModal } from './AboutModal';
 
