@@ -96,6 +96,8 @@ function MiniColorPicker({ value, onChange, children }: {
                   borderColor: c === value ? '#fff' : 'transparent',
                 }}
                 onClick={() => { onChange(c); setHex(c); }}
+                aria-label={`색상 선택 ${c}`}
+                aria-pressed={c === value}
               />
             ))}
           </div>
@@ -112,6 +114,7 @@ function MiniColorPicker({ value, onChange, children }: {
               if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) onChange(e.target.value);
             }}
             placeholder="#RRGGBB"
+            aria-label="16진수 색상 값"
           />
           {children && (
             <div className="mt-2 pt-2 space-y-1.5" style={{ borderTop: '1px solid rgba(180,180,200,0.08)' }}>
@@ -346,6 +349,7 @@ function TargetDirectoryRow() {
             onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); if (e.key === 'Escape') setEditing(false); }}
             disabled={loading}
             autoFocus
+            aria-label="대상 디렉터리 경로"
           />
           <div className="flex gap-1">
             <button

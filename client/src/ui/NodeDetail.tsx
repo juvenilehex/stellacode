@@ -45,6 +45,7 @@ export function NodeDetail() {
           onClick={() => selectNode(null)}
           className="text-sm px-1 hover:opacity-70 shrink-0"
           style={{ color: C.textSecondary }}
+          aria-label="닫기"
         >
           x
         </button>

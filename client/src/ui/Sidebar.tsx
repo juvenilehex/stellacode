@@ -51,6 +51,7 @@ export function Sidebar() {
             onClick={() => setAboutOpen(true)}
             className="ml-auto text-[10px] w-4 h-4 rounded flex items-center justify-center hover:opacity-70"
             style={{ border: `1px solid ${C.panelBorder}`, color: C.textSecondary }}
+            aria-label="소개 열기"
           >
             ?
           </button>
