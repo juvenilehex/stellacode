@@ -100,6 +100,14 @@ const DEFAULT_COLORS: CustomColors = {
   coChangeEdge: COLORS.coChangeEdge,
 };
 
+// 엣지 스타일 기본값 — initial state와 resetColors()가 공유(R231: 둘이 drift해
+// reset이 초기상태로 복원 안 되던 버그 수정. 단일 소스로 통일).
+const DEFAULT_EDGE_STYLES: Record<EdgeStyleKey, EdgeStyle> = {
+  importEdge:    { weight: 1, opacity: 10 },
+  directoryEdge: { weight: 1, opacity: 20 },
+  coChangeEdge:  { weight: 1, opacity: 15 },
+};
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -113,11 +121,7 @@ export const useSettingsStore = create<SettingsState>()(
         settings: false,
       },
       colors: { ...DEFAULT_COLORS },
-      edgeStyles: {
-        importEdge:    { weight: 1, opacity: 10 },
-        directoryEdge: { weight: 1, opacity: 20 },
-        coChangeEdge:  { weight: 1, opacity: 15 },
-      },
+      edgeStyles: { ...DEFAULT_EDGE_STYLES },
       nodeStyles: {
         directory:  { opacity: 80, size: 100 },
         typescript: { opacity: 80, size: 100 },
@@ -162,11 +166,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       resetColors: () => set({
         colors: { ...DEFAULT_COLORS },
-        edgeStyles: {
-          importEdge:    { weight: 1, opacity: 8 },
-          directoryEdge: { weight: 1, opacity: 22 },
-          coChangeEdge:  { weight: 1, opacity: 28 },
-        },
+        edgeStyles: { ...DEFAULT_EDGE_STYLES },
         nodeStyles: {
           directory:  { opacity: 80, size: 100 },
           typescript: { opacity: 80, size: 100 },

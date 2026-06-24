@@ -174,7 +174,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         if (node.type === 'directory') {
           const dirPrefix = node.id.replace('dir:', '');
           for (const f of visible) {
-            if (f.startsWith(dirPrefix)) {
+            if (f === dirPrefix || f.startsWith(dirPrefix + '/')) {
               nodeIds.add(node.id);
               break;
             }
