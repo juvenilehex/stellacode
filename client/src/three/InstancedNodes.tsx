@@ -294,6 +294,12 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
   }, [geometry]);
   const haloGeom = useMemo(() => new THREE.PlaneGeometry(1, 1), []);
 
+  // Imperative geometries passed via instancedMesh args= are NOT auto-disposed by R3F
+  // (only declarative JSX children are). Free their GPU buffers on geometry change/unmount;
+  // BufferGeometry.dispose() is idempotent so a redundant R3F dispose stays harmless.
+  useEffect(() => () => geom.dispose(), [geom]);
+  useEffect(() => () => haloGeom.dispose(), [haloGeom]);
+
   return (
     <>
       <instancedMesh
