@@ -72,3 +72,85 @@ describe('timeline-store scrubTo 디렉토리 prefix 경계 (R231 회귀)', () =
     expect(ids?.has('file:src/App.tsx')).toBe(true);
   });
 });
+
+
+/**
+ * computeVisibleFiles 파일상태 누적 회귀 테스트 (R264 자가발전).
+ *
+ * 미export 내부함수 computeVisibleFiles를 공개 scrubTo 경유로 검증한다(timeline-store의
+ * visibleFiles 상태로 assert). A=add/D=delete/R=oldPath delete+path add/M=no-op 누적과
+ * 스냅샷 캐시(post-commit 상태이므로 그 커밋 재적용 skip)의 [SPEC]을 고정한다.
+ */
+type FS = TimelineCommit['fileStatuses'];
+function commitWith(fileStatuses: FS): TimelineCommit {
+  return { hash: 'h', shortHash: 'h', timestamp: 0, message: 'm', author: 'a',
+    isAgent: false, conventionalType: 'feat', fileStatuses };
+}
+
+describe('computeVisibleFiles 파일상태 누적 (R264)', () => {
+  beforeEach(() => {
+    // store 상태를 명확히 초기화(다른 테스트 누수 차단)
+    useTimelineStore.setState({ snapshots: new Map(), mode: 'replay', loaded: true, currentIndex: -1, visibleFiles: new Set() });
+  });
+
+  function setCommits(commits: TimelineCommit[], snapshots = new Map<number, Set<string>>()) {
+    useTimelineStore.setState({ commits, snapshots, mode: 'replay', loaded: true });
+  }
+  const visibleAt = (i: number): Set<string> => {
+    useTimelineStore.getState().scrubTo(i);
+    return useTimelineStore.getState().visibleFiles;
+  };
+
+  it('[SPEC] A(add) 누적', () => {
+    setCommits([commitWith([{ status: 'A', path: 'a.ts' }, { status: 'A', path: 'b.ts' }])]);
+    const v = visibleAt(0);
+    expect([...v].sort()).toEqual(['a.ts', 'b.ts']);
+  });
+
+  it('[SPEC] D(delete)는 이전 추가 파일을 제거', () => {
+    setCommits([
+      commitWith([{ status: 'A', path: 'a.ts' }, { status: 'A', path: 'b.ts' }]),
+      commitWith([{ status: 'D', path: 'a.ts' }]),
+    ]);
+    expect([...visibleAt(1)]).toEqual(['b.ts']);
+  });
+
+  it('[SPEC] R(rename)은 oldPath 제거 + path 추가', () => {
+    setCommits([
+      commitWith([{ status: 'A', path: 'b.ts' }]),
+      commitWith([{ status: 'R', path: 'c.ts', oldPath: 'b.ts' }]),
+    ]);
+    expect([...visibleAt(1)]).toEqual(['c.ts']);
+  });
+
+  it('[SPEC] M(modify)은 집합 불변', () => {
+    setCommits([
+      commitWith([{ status: 'A', path: 'a.ts' }]),
+      commitWith([{ status: 'M', path: 'a.ts' }]),
+    ]);
+    expect([...visibleAt(1)]).toEqual(['a.ts']);
+  });
+
+  it('[SPEC] R에 oldPath 없으면 path만 추가(삭제 없음)', () => {
+    setCommits([
+      commitWith([{ status: 'A', path: 'a.ts' }]),
+      commitWith([{ status: 'R', path: 'b.ts' }]),
+    ]);
+    expect([...visibleAt(1)].sort()).toEqual(['a.ts', 'b.ts']);
+  });
+
+  it('[SPEC] 스냅샷 캐시 사용 — 스냅샷 커밋은 재적용 skip, 이후 커밋만 적용', () => {
+    // 스냅샷[1] = 커밋0,1 적용 후 상태({x.ts}). scrubTo(2)는 커밋2만 적용해야.
+    setCommits(
+      [
+        commitWith([{ status: 'A', path: 'x.ts' }]),
+        commitWith([{ status: 'A', path: 'IGNORED_IF_SKIPPED.ts' }]), // 스냅샷에 이미 반영된 것으로 간주
+        commitWith([{ status: 'A', path: 'y.ts' }]),
+      ],
+      new Map([[1, new Set(['x.ts'])]]), // 스냅샷[1]은 x.ts만(커밋1 재적용 안 함을 검증)
+    );
+    const v = visibleAt(2);
+    // 스냅샷[1]={x.ts} + 커밋2(y.ts) = {x.ts, y.ts}. 커밋1은 skip되어 IGNORED 미포함.
+    expect([...v].sort()).toEqual(['x.ts', 'y.ts']);
+  });
+});
