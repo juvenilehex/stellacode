@@ -209,20 +209,14 @@ export function ConnectScreen({ onConnected }: ConnectScreenProps) {
         return;
       }
 
-      const res = await fetch('/api/target', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: trimmed }),
-      });
+      // Same owner as the toolbar's target change: retarget posts the path, loads the
+      // new graph into the store and records targetPath.
+      const retargetError = await useGraphStore.getState().retarget(trimmed);
+      if (retargetError) throw new Error(retargetError);
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Connection failed' }));
-        throw new Error(data.error || `HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      useGraphStore.getState().setTargetPath(trimmed);
-      setStatusText(`${data.stats.totalFiles} files, ${data.stats.totalEdges} edges`);
+      const loaded = useGraphStore.getState().data;
+      if (!loaded) throw new Error('Graph did not load');
+      setStatusText(`${loaded.stats.totalFiles} files, ${loaded.stats.totalEdges} edges`);
       setPhase('connected');
 
       setTimeout(() => {

@@ -346,7 +346,7 @@ function OverlayLabel() {
     nodeStyles: s.nodeStyles,
   })));
   const themeScene = getTheme(themeId).scene;
-  const { camera, size } = useThree();
+  const { camera, size, gl } = useThree();
 
   // Create / resize the overlay canvas
   useEffect(() => {
@@ -354,10 +354,13 @@ function OverlayLabel() {
     if (!canvas) {
       canvas = document.createElement('canvas');
       canvas.id = LABEL_CANVAS_ID;
-      canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none;z-index:10';
-      // Insert into the Observatory container (parent of the Three canvas)
-      const container = document.querySelector('.w-full.h-full.relative');
-      if (container) container.appendChild(canvas);
+      // Labels belong to the 3D layer: sit right after the WebGL canvas inside R3F's
+      // own wrapper (position:relative), with no z-index, so the UI overlay that comes
+      // later in the DOM — sidebar, panels, toolbar — paints over them.
+      canvas.style.cssText = 'position:absolute;inset:0;pointer-events:none';
+      const host = gl.domElement.parentElement;
+      if (!host) throw new Error('R3F canvas has no parent element to host the label overlay');
+      host.appendChild(canvas);
     }
     const dpr = window.devicePixelRatio || 1;
     canvas.width = size.width * dpr;
@@ -368,7 +371,7 @@ function OverlayLabel() {
     return () => {
       canvas!.remove();
     };
-  }, [size]);
+  }, [size, gl]);
 
   // Draw labels every frame
   useFrame(() => {

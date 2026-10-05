@@ -59,6 +59,10 @@ export function useWebSocket() {
     connect();
     return () => {
       if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+      // onclose fires asynchronously after close() and would arm a fresh reconnect
+      // timer, reviving a socket for an unmounted hook — a second live socket that
+      // delivers every graph:update twice (seen under StrictMode's double mount).
+      if (wsRef.current) wsRef.current.onclose = null;
       wsRef.current?.close();
     };
   }, [connect]);

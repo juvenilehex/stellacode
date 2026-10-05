@@ -71,6 +71,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   timelineVisibleIds: null,
 
   setData: (data) => {
+    // The same server build can arrive twice — the WebSocket graph:update broadcast and
+    // an HTTP GET /api/graph race each other after a retarget, and neither order is
+    // guaranteed. Every server build stamps a fresh timestamp (builder.ts, relayout), so
+    // a repeat of the current build only settles loading/error and keeps the entry
+    // animation running instead of restarting it.
+    const current = get().data;
+    if (current && current.timestamp === data.timestamp && current.rootDir === data.rootDir) {
+      set({ loading: false, error: null });
+      return;
+    }
     const nodeMap = new Map<string, GraphNode>();
     for (const node of data.nodes) {
       nodeMap.set(node.id, node);
@@ -111,7 +121,6 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const trimmed = path.trim();
     if (!trimmed) return 'Path is empty';
     set({ loading: true, error: null, selectedNodeId: null, connectedNodeIds: new Set() });
-    const versionBefore = get().graphVersion;
     try {
       const res = await fetch('/api/target', {
         method: 'POST',
@@ -122,15 +131,12 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         const data = await res.json().catch(() => ({ error: 'Request failed' }));
         throw new Error(data.error || `HTTP ${res.status}`);
       }
-      // The server broadcasts graph:update over WebSocket before answering the POST,
-      // and useWebSocket feeds it to setData. Only fetch the graph ourselves when that
-      // broadcast has not landed (socket down) — otherwise a second setData would
-      // restart the entry animation mid-way.
-      if (get().graphVersion === versionBefore) {
-        const graphRes = await fetch('/api/graph');
-        if (!graphRes.ok) throw new Error('Failed to reload graph');
-        get().setData(await graphRes.json() as GraphData);
-      }
+      // The server also broadcasts this build over WebSocket; whichever copy lands
+      // second is a no-op in setData. Fetching here keeps retarget working with no
+      // socket at all (the connect screen runs before the WebSocket hook mounts).
+      const graphRes = await fetch('/api/graph');
+      if (!graphRes.ok) throw new Error('Failed to reload graph');
+      get().setData(await graphRes.json() as GraphData);
       set({ targetPath: trimmed, loading: false });
       return null;
     } catch (err) {

@@ -64,14 +64,8 @@ type AnyColorMap = any;
 
 /** Get node color. Pass custom colors from settings store to use user overrides. */
 export function getNodeColor(type: string, language?: string, custom?: AnyColorMap): string {
-  const c = custom ?? COLORS;
-  if (type === 'directory') return c.directory ?? COLORS.directory;
-  switch (language) {
-    case 'typescript': case 'tsx': return c.typescript ?? COLORS.typescript;
-    case 'javascript': case 'jsx': return c.javascript ?? COLORS.javascript;
-    case 'python': return c.python ?? COLORS.python;
-    default: return c.unknown ?? COLORS.unknown;
-  }
+  const key = getNodeStyleKey(type, language);
+  return (custom ?? COLORS)[key] ?? COLORS[key];
 }
 
 /** Get edge color. Pass custom colors from settings store to use user overrides. */
@@ -205,23 +199,20 @@ export function getCommitTypeColor(type: string): string {
   }
 }
 
-/** Map a node to its legend filter key */
+/** Map a node to its legend filter key ('' = no legend entry, cannot be hidden) */
 export function getNodeFilterKey(type: string, language?: string): FilterKey | '' {
-  if (type === 'directory') return 'directory';
-  switch (language) {
-    case 'typescript': return 'typescript';
-    case 'javascript': return 'javascript';
-    case 'python': return 'python';
-    default: return '';
-  }
+  const key = getNodeStyleKey(type, language);
+  return key === 'unknown' ? '' : key;
 }
 
-/** Map a node to its per-type style key (size/opacity settings) */
+/**
+ * The one language → category mapping. Color, legend filter and per-type style all
+ * read it. The server folds .tsx/.jsx into typescript/javascript (ts-parser.ts) and
+ * also emits 'go', which has no category yet and lands in 'unknown'.
+ */
 export function getNodeStyleKey(type: string, language?: string): NodeStyleKey {
   if (type === 'directory') return 'directory';
-  if (language === 'typescript' || language === 'tsx') return 'typescript';
-  if (language === 'javascript' || language === 'jsx') return 'javascript';
-  if (language === 'python') return 'python';
+  if (language === 'typescript' || language === 'javascript' || language === 'python') return language;
   return 'unknown';
 }
 

@@ -86,11 +86,31 @@ describe('graph-store', () => {
       expect(state.error).toBeNull();
     });
 
-    it('increments graphVersion', () => {
-      useGraphStore.getState().setData(makeGraph());
+    it('increments graphVersion for each new server build', () => {
+      useGraphStore.getState().setData(makeGraph({ timestamp: 1000 }));
       expect(useGraphStore.getState().graphVersion).toBe(1);
 
-      useGraphStore.getState().setData(makeGraph());
+      useGraphStore.getState().setData(makeGraph({ timestamp: 2000 }));
+      expect(useGraphStore.getState().graphVersion).toBe(2);
+    });
+
+    it('a repeat of the current build (WS + GET race) keeps the entry animation running', () => {
+      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, nodes: [makeNode('a')] }));
+      useGraphStore.getState().tickEntry(1);
+      useGraphStore.setState({ loading: true, error: 'stale' });
+
+      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, nodes: [makeNode('a')] }));
+
+      const s = useGraphStore.getState();
+      expect(s.graphVersion).toBe(1);
+      expect(s.entryProgress).toBeGreaterThan(0);
+      expect(s.loading).toBe(false);
+      expect(s.error).toBeNull();
+    });
+
+    it('same timestamp from a different root is a new graph', () => {
+      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, rootDir: '/a' }));
+      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, rootDir: '/b' }));
       expect(useGraphStore.getState().graphVersion).toBe(2);
     });
 
@@ -284,18 +304,20 @@ describe('graph-store', () => {
       expect(s.loading).toBe(false);
     });
 
-    it('WebSocket broadcast already landed: does not refetch or restart the entry animation', async () => {
+    it('WebSocket copy of the same build landed first: the GET copy does not restart the entry animation', async () => {
       const calls: string[] = [];
+      const build = graph();
       vi.stubGlobal('fetch', vi.fn(async (url: string) => {
         calls.push(url);
-        // server broadcasts graph:update before answering the POST
-        useGraphStore.getState().setData(graph());
+        if (url === '/api/graph') return json(build);
+        // the WS graph:update for this build lands while the POST is in flight
+        useGraphStore.getState().setData(build);
         useGraphStore.getState().tickEntry(1);
         return json({ target: '/next', stats: {} });
       }));
       await useGraphStore.getState().retarget('/next');
       const s = useGraphStore.getState();
-      expect(calls).toEqual(['/api/target']);
+      expect(calls).toEqual(['/api/target', '/api/graph']);
       expect(s.graphVersion).toBe(1);
       expect(s.entryProgress).toBeGreaterThan(0);
       expect(s.targetPath).toBe('/next');
