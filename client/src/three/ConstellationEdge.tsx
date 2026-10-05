@@ -5,6 +5,8 @@ import type { GraphEdge, GraphNode } from '../types/graph';
 import { useGraphStore } from '../store/graph-store';
 import { useSettingsStore, type EdgeStyleKey } from '../store/settings-store';
 import { getEdgeColor } from '../utils/colors';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { getEdgeRevealT } from './nodeRules';
 
 interface ConstellationEdgeProps {
   edge: GraphEdge;
@@ -22,6 +24,7 @@ export function ConstellationEdge({ edge, nodes }: ConstellationEdgeProps) {
   const edgeStyle = useSettingsStore(s => s.edgeStyles[styleKey]);
   const customColors = useSettingsStore(s => s.colors);
   const edgePulse = useSettingsStore(s => s.edgePulse);
+  const reducedMotion = useReducedMotion();
   const entryProgress = useGraphStore(s => s.entryProgress);
   const entryActive = useGraphStore(s => s.entryActive);
   const timelineVisibleIds = useGraphStore(s => s.timelineVisibleIds);
@@ -55,9 +58,7 @@ export function ConstellationEdge({ edge, nodes }: ConstellationEdgeProps) {
   // Entry animation: edges appear after both nodes are revealed
   const edgeRevealT = useMemo(() => {
     if (!source || !target) return 0;
-    const sReveal = Math.max(0, Math.min(1, (source.x * 0.3 + source.y * 0.5 + source.z * 0.2 + 10) / 20));
-    const tReveal = Math.max(0, Math.min(1, (target.x * 0.3 + target.y * 0.5 + target.z * 0.2 + 10) / 20));
-    return Math.max(sReveal, tReveal) + 0.05; // slight delay after nodes
+    return getEdgeRevealT(source, target);
   }, [source?.x, source?.y, source?.z, target?.x, target?.y, target?.z]);
 
   // Early returns AFTER all hooks (React rules of hooks)
@@ -77,7 +78,7 @@ export function ConstellationEdge({ edge, nodes }: ConstellationEdgeProps) {
       opacity={opacity}
       weight={edgeStyle.weight}
       strength={edge.strength ?? 0}
-      pulse={edgePulse}
+      pulse={edgePulse && !reducedMotion}
       blending={edge.type === 'directory' ? THREE.AdditiveBlending : THREE.NormalBlending}
     />
   );
@@ -101,7 +102,13 @@ function PulseEdge({ source, target, color, opacity, weight = 1, strength = 0, p
 
   // Pulse animation: modulate opacity
   useFrame(({ clock }) => {
-    if (!pulse || !matRef.current) return;
+    if (!matRef.current) return;
+    if (!pulse) {
+      // Pulse switched off mid-session (setting or reduced motion): settle on the base opacity
+      // instead of freezing at the last modulated value.
+      matRef.current.opacity = opacity;
+      return;
+    }
     const t = clock.elapsedTime;
     const pulseSpeed = 1.5 + strength * 2.0;
     const pulseAmp = 0.15 + strength * 0.25;

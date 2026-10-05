@@ -10,6 +10,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { getEdgeColor } from '../utils/colors';
 import { getTheme } from '../utils/themes';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { getEdgeRevealT } from './nodeRules';
 
 /** Base line width in pixels */
 const BASE_LINE_WIDTH = 0.3;
@@ -52,9 +53,7 @@ export function MergedEdges({ edges, nodeMap }: {
       }
 
       if (entryActive) {
-        const sReveal = Math.max(0, Math.min(1, (source.x * 0.3 + source.y * 0.5 + source.z * 0.2 + 10) / 20));
-        const tReveal = Math.max(0, Math.min(1, (target.x * 0.3 + target.y * 0.5 + target.z * 0.2 + 10) / 20));
-        if (entryProgress < Math.max(sReveal, tReveal) + 0.05) continue;
+        if (entryProgress < getEdgeRevealT(source, target)) continue;
       }
 
       if (edge.type === 'import' && hiddenFilters.has('import')) continue;

@@ -6,24 +6,15 @@ import type { GraphNode } from '../types/graph';
 import { useGraphStore } from '../store/graph-store';
 import { useAgentStore } from '../store/agent-store';
 import { useSettingsStore } from '../store/settings-store';
-import { getNodeColor, getNodeFilterKey, getNodeAgeColor, getNodeAgentColor, getComplexityFactor, COLORS } from '../utils/colors';
-import type { NodeStyleKey } from '../store/settings-store';
+import { getNodeColor, getNodeFilterKey, getNodeStyleKey, getNodeAgeColor, getNodeAgentColor, getComplexityFactor, COLORS } from '../utils/colors';
 import { getTheme } from '../utils/themes';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { glowTexture } from './glowTexture';
+import { getNodePhase, getNodeBaseScale, getNodeRevealT, getEntryScale, getAgentPulse, motionSin } from './nodeRules';
 
 const _dummy = new THREE.Object3D();
 const _color = new THREE.Color();
 const _haloColor = new THREE.Color();
-
-/** Map node type+language to NodeStyleKey */
-function getNodeStyleKey(type: string, language?: string): NodeStyleKey {
-  if (type === 'directory') return 'directory';
-  if (language === 'typescript' || language === 'tsx') return 'typescript';
-  if (language === 'javascript' || language === 'jsx') return 'javascript';
-  if (language === 'python') return 'python';
-  return 'unknown';
-}
 
 /**
  * High-performance instanced rendering for large node sets.
@@ -164,15 +155,14 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
       const sizeScale = ns.size / 100;
       const nodeOpacity = ns.opacity / 100;
 
-      const phase = node.x * 1.7 + node.y * 2.3 + node.z * 0.9;
-      const baseScale = (node.type === 'directory' ? 0.28 : 0.14 + node.scale * 0.09) * sizeScale;
+      const phase = getNodePhase(node.x, node.y, node.z);
+      const baseScale = getNodeBaseScale(node.type, node.scale, sizeScale);
 
       // Entry animation
       let entryScale = 1.0;
       if (entryActive) {
-        const revealT = Math.max(0, Math.min(1, (node.x * 0.3 + node.y * 0.5 + node.z * 0.2 + 10) / 20));
-        const reveal = Math.max(0, Math.min(1, (entryProgress - revealT) / 0.15));
-        if (reveal <= 0) {
+        entryScale = getEntryScale(entryProgress, getNodeRevealT(node.x, node.y, node.z));
+        if (entryScale === 0) {
           _dummy.position.set(0, -9999, 0);
           _dummy.scale.setScalar(0);
           _dummy.updateMatrix();
@@ -180,7 +170,6 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
           if (halo) halo.setMatrixAt(i, _dummy.matrix);
           continue;
         }
-        entryScale = reveal * (2.0 - reveal) * (reveal < 0.7 ? 1.3 : 1.0);
       }
 
       const breathe = reducedMotion ? 1.0
@@ -194,9 +183,7 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
       const isActive = filePath ? isFileActive(filePath) : false;
 
       // Pulse
-      const agentPulse = isActive
-        ? (reducedMotion ? 1.3 : 1.0 + (0.15 + 0.25 * sig) + Math.sin(t * 8 + phase) * (0.15 + 0.15 * sig))
-        : 1.0;
+      const agentPulse = isActive ? getAgentPulse(t, phase, sig, reducedMotion) : 1.0;
       const pulse = isSelected ? 1.35 : isHovered ? 1.2 : agentPulse;
       const scale = baseScale * pulse * breathe * entryScale;
 
@@ -213,7 +200,7 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
 
       if (isActive) {
         // Supernova: white-hot core when agent is modifying this file
-        const pulse = 0.85 + Math.sin(t * 6 + phase) * 0.15;
+        const pulse = 0.85 + motionSin(reducedMotion, t * 6 + phase) * 0.15;
         _color.setRGB(pulse, pulse, pulse);
       } else {
         const dimFactor = isDimmed ? 0.2 : nodeOpacity * complexityBoost;
@@ -232,12 +219,12 @@ function NodeCluster({ nodes, geometry }: { nodes: GraphNode[]; geometry: 'spher
 
       if (halo) {
         const haloPulse = isSelected
-          ? 5.2 + Math.sin(t * 3 + phase) * 0.8
+          ? 5.2 + motionSin(reducedMotion, t * 3 + phase) * 0.8
           : isHovered
-            ? 4.6 + Math.sin(t * 4 + phase) * 0.6
+            ? 4.6 + motionSin(reducedMotion, t * 4 + phase) * 0.6
             : isActive
-              ? 5.0 + Math.sin(t * 6 + phase) * 0.7
-              : 3.6 + cFactor * 1.8 + Math.sin(t * 1.2 + phase) * 0.15;
+              ? 5.0 + motionSin(reducedMotion, t * 6 + phase) * 0.7
+              : 3.6 + cFactor * 1.8 + motionSin(reducedMotion, t * 1.2 + phase) * 0.15;
         const haloScale = baseScale * haloPulse * entryScale;
 
         _dummy.position.set(node.x, node.y, node.z);

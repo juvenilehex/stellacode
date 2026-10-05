@@ -7,7 +7,7 @@
  * float 비교는 toBeCloseTo.
  */
 import { describe, it, expect } from 'vitest';
-import { getComplexityFactor } from '../colors';
+import { getComplexityFactor, getNodeStyleKey, getNodeFilterKey } from '../colors';
 
 
 describe('getComplexityFactor', () => {
@@ -48,5 +48,19 @@ describe('getComplexityFactor', () => {
   it('[현 동작] 음수는 floor되지 않음 (상한 clamp만) — count는 현실적으로 ≥0', () => {
     // characterization: 음수 입력은 음수 factor를 낸다(버그 fix 아님, 실데이터엔 음수 없음)
     expect(getComplexityFactor({ symbolCount: -30, lineCount: 0, degree: 0 })).toBeCloseTo(-0.4);
+  });
+});
+
+
+describe('getNodeStyleKey (R559: 두 노드 렌더러의 사본을 단일화)', () => {
+  it('[SPEC] 디렉터리·언어별 키', () => {
+    expect(getNodeStyleKey('directory', 'typescript')).toBe('directory');
+    expect(getNodeStyleKey('file', 'typescript')).toBe('typescript');
+    expect(getNodeStyleKey('file', 'javascript')).toBe('javascript');
+    expect(getNodeStyleKey('file', 'python')).toBe('python');
+  });
+  it('[SPEC] 범주가 없는 언어(go 등)는 unknown — getNodeFilterKey 는 빈 키', () => {
+    expect(getNodeStyleKey('file', 'go')).toBe('unknown');
+    expect(getNodeFilterKey('file', 'go')).toBe('');
   });
 });

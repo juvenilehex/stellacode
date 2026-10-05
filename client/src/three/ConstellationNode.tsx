@@ -6,17 +6,10 @@ import type { GraphNode } from '../types/graph';
 import { useGraphStore } from '../store/graph-store';
 import { useAgentStore } from '../store/agent-store';
 import { useSettingsStore } from '../store/settings-store';
-import { getNodeColor, getNodeFilterKey, getNodeAgeColor, getNodeAgentColor, getComplexityFactor, COLORS } from '../utils/colors';
-import type { NodeStyleKey } from '../store/settings-store';
+import { getNodeColor, getNodeFilterKey, getNodeStyleKey, getNodeAgeColor, getNodeAgentColor, getComplexityFactor, COLORS } from '../utils/colors';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { glowTexture } from './glowTexture';
-
-function getNodeStyleKey(type: string, language?: string): NodeStyleKey {
-  if (type === 'directory') return 'directory';
-  if (language === 'typescript' || language === 'tsx') return 'typescript';
-  if (language === 'javascript' || language === 'jsx') return 'javascript';
-  if (language === 'python') return 'python';
-  return 'unknown';
-}
+import { getNodePhase, getNodeBaseScale, getNodeRevealT, getEntryScale, getAgentPulse, motionSin } from './nodeRules';
 
 interface ConstellationNodeProps {
   node: GraphNode;
@@ -51,6 +44,7 @@ export function ConstellationNode({ node }: ConstellationNodeProps) {
   const entryActive = useGraphStore(s => s.entryActive);
   const allNodes = useGraphStore(s => s.data?.nodes);
   const sig = signalIntensity / 50; // normalize: 50 = 1x
+  const reducedMotion = useReducedMotion();
 
   const nsk = getNodeStyleKey(node.type, node.language);
   const nodeStyle = nodeStyles[nsk];
@@ -80,14 +74,11 @@ export function ConstellationNode({ node }: ConstellationNodeProps) {
   const complexityFactor = useMemo(() => getComplexityFactor(node), [node.symbolCount, node.lineCount, node.degree]);
   const cGlow = (complexityGlow / 100) * complexityFactor;
 
-  const baseScale = (node.type === 'directory' ? 0.28 : 0.14 + node.scale * 0.09) * sizeScale;
-  const phase = node.x * 1.7 + node.y * 2.3 + node.z * 0.9;
+  const baseScale = getNodeBaseScale(node.type, node.scale, sizeScale);
+  const phase = getNodePhase(node.x, node.y, node.z);
 
   // Entry animation: per-node reveal time based on spatial position
-  const revealT = useMemo(() => {
-    const raw = (node.x * 0.3 + node.y * 0.5 + node.z * 0.2 + 10) / 20;
-    return Math.max(0, Math.min(1, raw));
-  }, [node.x, node.y, node.z]);
+  const revealT = useMemo(() => getNodeRevealT(node.x, node.y, node.z), [node.x, node.y, node.z]);
 
   const handleClick = useCallback((e: THREE.Event) => {
     (e as unknown as { stopPropagation: () => void }).stopPropagation();
@@ -116,27 +107,26 @@ export function ConstellationNode({ node }: ConstellationNodeProps) {
     // Entry animation: hide until revealed, then pop-in with overshoot
     let entryScale = 1.0;
     if (entryActive) {
-      const reveal = Math.max(0, Math.min(1, (entryProgress - revealT) / 0.15));
-      if (reveal <= 0) {
+      entryScale = getEntryScale(entryProgress, revealT);
+      if (entryScale === 0) {
         meshRef.current.scale.setScalar(0);
         if (glowRef.current) glowRef.current.scale.set(0, 0, 1);
         return;
       }
-      // Smooth overshoot: 0 → 1.3 → 1.0
-      entryScale = reveal * (2.0 - reveal) * (reveal < 0.7 ? 1.3 : 1.0);
     }
 
-    const breathe = 1.0 + Math.sin(t * 1.2 + phase) * 0.06
-                        + Math.sin(t * 0.5 + phase * 0.5) * 0.03;
+    const breathe = reducedMotion ? 1.0
+      : 1.0 + Math.sin(t * 1.2 + phase) * 0.06
+            + Math.sin(t * 0.5 + phase * 0.5) * 0.03;
 
-    const agentPulse = isAgentActive ? 1.0 + (0.15 + 0.25 * sig) + Math.sin(t * 8 + phase) * (0.15 + 0.15 * sig) : 1.0;
+    const agentPulse = isAgentActive ? getAgentPulse(t, phase, sig, reducedMotion) : 1.0;
     const targetPulse = isSelected ? 1.35 : hovered ? 1.2 : agentPulse;
     pulseRef.current = THREE.MathUtils.lerp(pulseRef.current, targetPulse, 0.08);
     const scale = baseScale * pulseRef.current * breathe * entryScale;
     meshRef.current.scale.setScalar(scale);
 
     if (matRef.current) {
-      const shimmer = hovered ? 0.3 * Math.sin(t * 6 + phase) : 0;
+      const shimmer = hovered && !reducedMotion ? 0.3 * Math.sin(t * 6 + phase) : 0;
       // Complexity glow: brighter emissive for complex files
       const baseEmissive = 0.25 + cGlow * 0.35;
       const targetEmissive = isSelected ? 0.6 : hovered ? 0.4 + shimmer : isAgentActive ? 1.0 : baseEmissive;
@@ -147,7 +137,7 @@ export function ConstellationNode({ node }: ConstellationNodeProps) {
       );
       // Supernova: white-hot core when agent is modifying this file
       if (isAgentActive) {
-        const pulse = 0.85 + Math.sin(t * 6 + phase) * 0.15;
+        const pulse = 0.85 + motionSin(reducedMotion, t * 6 + phase) * 0.15;
         matRef.current.color.setRGB(pulse, pulse, pulse);
         matRef.current.emissive.setRGB(pulse, pulse, pulse);
       } else {
@@ -160,10 +150,10 @@ export function ConstellationNode({ node }: ConstellationNodeProps) {
       // Complexity glow: larger halo for complex files
       const complexGlowBoost = cGlow * 1.5;
       const glowPulse = isSelected
-        ? 4 + Math.sin(t * 3 + phase) * 1
+        ? 4 + motionSin(reducedMotion, t * 3 + phase) * 1
         : hovered
-          ? 3.5 + Math.sin(t * 4 + phase) * 0.8
-          : 3 + complexGlowBoost + Math.sin(t * 1.2 + phase) * 0.2;
+          ? 3.5 + motionSin(reducedMotion, t * 4 + phase) * 0.8
+          : 3 + complexGlowBoost + motionSin(reducedMotion, t * 1.2 + phase) * 0.2;
       const gs = baseScale * glowPulse * entryScale;
       glowRef.current.scale.set(gs, gs, 1);
 

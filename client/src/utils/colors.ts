@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { FilterKey } from '../store/graph-store';
+import type { NodeStyleKey } from '../store/settings-store';
 
 /** Observatory color palette */
 
@@ -213,6 +214,15 @@ export function getNodeFilterKey(type: string, language?: string): FilterKey | '
     case 'python': return 'python';
     default: return '';
   }
+}
+
+/** Map a node to its per-type style key (size/opacity settings) */
+export function getNodeStyleKey(type: string, language?: string): NodeStyleKey {
+  if (type === 'directory') return 'directory';
+  if (language === 'typescript' || language === 'tsx') return 'typescript';
+  if (language === 'javascript' || language === 'jsx') return 'javascript';
+  if (language === 'python') return 'python';
+  return 'unknown';
 }
 
 export function getCommitTypeLabel(type: string): string {

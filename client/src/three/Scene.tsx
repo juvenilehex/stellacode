@@ -15,6 +15,7 @@ import { COLORS } from '../utils/colors';
 import { useSettingsStore } from '../store/settings-store';
 import { useTimelineStore } from '../store/timeline-store';
 import { getTheme } from '../utils/themes';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 declare global {
   interface Window {
@@ -92,8 +93,10 @@ function SceneContent() {
 function EntryAnimator() {
   const tickEntry = useGraphStore(s => s.tickEntry);
   const entryActive = useGraphStore(s => s.entryActive);
+  const reducedMotion = useReducedMotion();
   useFrame((_, delta) => {
-    if (entryActive) tickEntry(delta);
+    // Reduced motion: skip the pop-in and show the whole constellation at once
+    if (entryActive) tickEntry(reducedMotion ? Infinity : delta);
   });
   return null;
 }
@@ -110,11 +113,12 @@ function TimelineAnimator() {
 
 function CameraControls({ maxDist }: { maxDist: number }) {
   const observeMode = useSettingsStore(s => s.observeMode);
+  const reducedMotion = useReducedMotion();
   return (
     <OrbitControls
       enableDamping
       dampingFactor={observeMode ? 0.02 : 0.04}
-      autoRotate
+      autoRotate={!reducedMotion}
       autoRotateSpeed={observeMode ? 0.04 : 0.12}
       minDistance={5}
       maxDistance={maxDist}
