@@ -5,6 +5,7 @@ import { COLORS } from '../utils/colors';
 import { useSettingsStore } from '../store/settings-store';
 import { getTheme } from '../utils/themes';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { motionSin } from './nodeRules';
 
 /** 3-layer star background + nebula clouds */
 export function Starfield() {
@@ -75,6 +76,7 @@ function StarLayer({ count, spread, size, color, opacity, speed }: StarLayerProp
 /** Subtle nebula clouds — large, faint, colored sprites in the background */
 function NebulaClouds() {
   const groupRef = useRef<THREE.Group>(null);
+  const reducedMotion = useReducedMotion();
 
   const clouds = useMemo(() => {
     const NEBULA_COLORS = ['#2a1f40', '#1a2540', '#301a30', '#1a3030', '#25203a', '#201535', '#182028', '#2d1840'];
@@ -92,21 +94,21 @@ function NebulaClouds() {
   }, []);
 
   useFrame(({ clock }) => {
-    if (!groupRef.current) return;
+    if (!groupRef.current || reducedMotion) return;
     groupRef.current.rotation.y = clock.elapsedTime * 0.00008;
   });
 
   return (
     <group ref={groupRef}>
       {clouds.map((cloud, i) => (
-        <NebulaSprite key={i} {...cloud} />
+        <NebulaSprite key={i} {...cloud} reducedMotion={reducedMotion} />
       ))}
     </group>
   );
 }
 
-function NebulaSprite({ position, scale, color, opacity, phase }: {
-  position: [number, number, number]; scale: number; color: string; opacity: number; phase: number;
+function NebulaSprite({ position, scale, color, opacity, phase, reducedMotion }: {
+  position: [number, number, number]; scale: number; color: string; opacity: number; phase: number; reducedMotion: boolean;
 }) {
   const ref = useRef<THREE.Sprite>(null);
 
@@ -138,7 +140,7 @@ function NebulaSprite({ position, scale, color, opacity, phase }: {
     if (!ref.current) return;
     const t = clock.elapsedTime;
     (ref.current.material as THREE.SpriteMaterial).opacity =
-      opacity * (0.7 + Math.sin(t * 0.12 + phase) * 0.3);
+      opacity * (0.7 + motionSin(reducedMotion, t * 0.12 + phase) * 0.3);
   });
 
   return (

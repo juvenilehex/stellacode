@@ -45,7 +45,7 @@ export function Sidebar() {
           </span>
           <span className="text-[10px] px-1.5 py-0.5 rounded"
             style={{ background: 'rgba(199,164,255,0.1)', color: C.directory }}>
-            v1.0
+            v{__APP_VERSION__}
           </span>
           <button
             onClick={() => setAboutOpen(true)}

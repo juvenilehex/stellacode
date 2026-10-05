@@ -6,6 +6,8 @@ import { useGraphStore } from '../store/graph-store';
 import { useSettingsStore } from '../store/settings-store';
 import { getAgentColor, getNodeColor } from '../utils/colors';
 import { glowTexture } from './glowTexture';
+import { motionSin } from './nodeRules';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 const MAX_AGE = 5 * 60 * 1000; // 5 minutes
 
@@ -14,6 +16,7 @@ export function AgentTrail() {
   const events = useAgentStore(s => s.events);
   const data = useGraphStore(s => s.data);
   const customColors = useSettingsStore(s => s.colors);
+  const reducedMotion = useReducedMotion();
 
   const { sparkles, trailPaths } = useMemo(() => {
     if (!data || events.length === 0) return { sparkles: [], trailPaths: [] };
@@ -102,26 +105,26 @@ export function AgentTrail() {
     <>
       {/* Trail paths — fading lines connecting agent's recent file touches */}
       {trailPaths.map((trail, i) => (
-        <TrailPath key={`path-${i}`} {...trail} />
+        <TrailPath key={`path-${i}`} {...trail} reducedMotion={reducedMotion} />
       ))}
       {/* Sparkle effects on each touched node */}
       {sparkles.map((sparkle, i) => (
-        <TrailSparkle key={`sparkle-${i}`} {...sparkle} />
+        <TrailSparkle key={`sparkle-${i}`} {...sparkle} reducedMotion={reducedMotion} />
       ))}
     </>
   );
 }
 
 /** Animated line connecting agent's recent file touches */
-function TrailPath({ positions, color, freshness }: {
-  positions: Float32Array; color: string; freshness: number;
+function TrailPath({ positions, color, freshness, reducedMotion }: {
+  positions: Float32Array; color: string; freshness: number; reducedMotion: boolean;
 }) {
   const matRef = useRef<THREE.LineBasicMaterial>(null);
 
   useFrame(({ clock }) => {
     if (!matRef.current) return;
     const t = clock.elapsedTime;
-    matRef.current.opacity = freshness * (0.15 + Math.sin(t * 2) * 0.05);
+    matRef.current.opacity = freshness * (0.15 + motionSin(reducedMotion, t * 2) * 0.05);
   });
 
   return (
@@ -142,11 +145,12 @@ function TrailPath({ positions, color, freshness }: {
   );
 }
 
-function TrailSparkle({ position, color, age, phase }: {
+function TrailSparkle({ position, color, age, phase, reducedMotion }: {
   position: [number, number, number];
   color: string;
   age: number;
   phase: number;
+  reducedMotion: boolean;
 }) {
   const innerRef = useRef<THREE.Sprite>(null);
   const outerRef = useRef<THREE.Sprite>(null);
@@ -158,23 +162,23 @@ function TrailSparkle({ position, color, age, phase }: {
 
     // Inner glow: steady pulse
     if (innerRef.current) {
-      const pulse = 0.3 + freshness * 0.5 + Math.sin(t * 4 + phase) * 0.15 * freshness;
+      const pulse = 0.3 + freshness * 0.5 + motionSin(reducedMotion, t * 4 + phase) * 0.15 * freshness;
       innerRef.current.scale.set(pulse, pulse, 1);
       (innerRef.current.material as THREE.SpriteMaterial).opacity =
-        freshness * (0.5 + Math.sin(t * 3 + phase) * 0.2);
+        freshness * (0.5 + motionSin(reducedMotion, t * 3 + phase) * 0.2);
     }
 
     // Outer halo: slow expansion
     if (outerRef.current) {
-      const expand = 0.6 + freshness * 0.8 + Math.sin(t * 1.5 + phase) * 0.2;
+      const expand = 0.6 + freshness * 0.8 + motionSin(reducedMotion, t * 1.5 + phase) * 0.2;
       outerRef.current.scale.set(expand, expand, 1);
       (outerRef.current.material as THREE.SpriteMaterial).opacity =
-        freshness * (0.12 + Math.sin(t * 2 + phase * 0.7) * 0.06);
+        freshness * (0.12 + motionSin(reducedMotion, t * 2 + phase * 0.7) * 0.06);
     }
 
     // Ring: expanding ripple for very fresh events
     if (ringRef.current && freshness > 0.5) {
-      const ripple = 0.4 + (1 - freshness) * 2 + Math.sin(t * 6 + phase) * 0.1;
+      const ripple = 0.4 + (1 - freshness) * 2 + motionSin(reducedMotion, t * 6 + phase) * 0.1;
       ringRef.current.scale.set(ripple, ripple, 1);
       (ringRef.current.material as THREE.SpriteMaterial).opacity =
         (freshness - 0.5) * 0.4;

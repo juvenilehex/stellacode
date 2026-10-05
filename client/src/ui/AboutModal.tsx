@@ -99,7 +99,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
             </span>
             <span className="text-[10px] px-1.5 py-0.5 rounded"
               style={{ background: 'rgba(199,164,255,0.1)', color: COLORS.directory }}>
-              v1.1
+              v{__APP_VERSION__}
             </span>
           </div>
           <button

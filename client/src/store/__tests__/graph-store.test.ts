@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useGraphStore } from '../graph-store';
 import type { GraphData, GraphNode, GraphEdge } from '../../types/graph';
 
@@ -254,6 +254,52 @@ describe('graph-store', () => {
     it('setLoading updates loading state', () => {
       useGraphStore.getState().setLoading(false);
       expect(useGraphStore.getState().loading).toBe(false);
+    });
+  });
+  describe('retarget', () => {
+    const graph = () => makeGraph({
+      nodes: [makeNode('a'), makeNode('b')],
+      edges: [makeEdge('a', 'b')],
+    });
+    const json = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+
+    afterEach(() => { vi.unstubAllGlobals(); });
+
+    it('socket down: fetches the graph and goes through setData (maps + entry animation)', async () => {
+      const calls: string[] = [];
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        calls.push(url);
+        return url === '/api/graph' ? json(graph()) : json({ target: '/next', stats: {} });
+      }));
+      const err = await useGraphStore.getState().retarget(' /next ');
+      const s = useGraphStore.getState();
+      expect(err).toBeNull();
+      expect(calls).toEqual(['/api/target', '/api/graph']);
+      expect(s.adjacencyMap.get('a')?.has('b')).toBe(true);
+      expect(s.nodeMap.size).toBe(2);
+      expect(s.entryActive).toBe(true);
+      expect(s.entryProgress).toBe(0);
+      expect(s.graphVersion).toBe(1);
+      expect(s.targetPath).toBe('/next');
+      expect(s.loading).toBe(false);
+    });
+
+    it('WebSocket broadcast already landed: does not refetch or restart the entry animation', async () => {
+      const calls: string[] = [];
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        calls.push(url);
+        // server broadcasts graph:update before answering the POST
+        useGraphStore.getState().setData(graph());
+        useGraphStore.getState().tickEntry(1);
+        return json({ target: '/next', stats: {} });
+      }));
+      await useGraphStore.getState().retarget('/next');
+      const s = useGraphStore.getState();
+      expect(calls).toEqual(['/api/target']);
+      expect(s.graphVersion).toBe(1);
+      expect(s.entryProgress).toBeGreaterThan(0);
+      expect(s.targetPath).toBe('/next');
+      expect(s.loading).toBe(false);
     });
   });
 });

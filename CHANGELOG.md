@@ -5,6 +5,14 @@ All notable changes to StellaCode will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Sidebar and About badges showed `v1.0` / `v1.1`; the version is now derived from `package.json` at build time
+- Reduced motion (`prefers-reduced-motion: reduce`) now also stills the connect-screen starfield, AI agent trail sparkles and nebula clouds
+- Changing the target from the toolbar now replays the entry animation when the WebSocket is down, without restarting it when the broadcast already arrived
+- Node labels in large projects (>100 nodes) follow the node size setting instead of an older size formula
+
 ## [1.3.0] - 2026-03-23
 
 ### Added

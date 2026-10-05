@@ -339,10 +339,11 @@ function OverlayLabel() {
     timelineVisibleIds: s.timelineVisibleIds,
     connectedNodeIds: s.connectedNodeIds,
   })));
-  const { labelMode, fontSize, themeId } = useSettingsStore(useShallow(s => ({
+  const { labelMode, fontSize, themeId, nodeStyles } = useSettingsStore(useShallow(s => ({
     labelMode: s.labelMode,
     fontSize: s.fontSize,
     themeId: s.theme,
+    nodeStyles: s.nodeStyles,
   })));
   const themeScene = getTheme(themeId).scene;
   const { camera, size } = useThree();
@@ -414,7 +415,10 @@ function OverlayLabel() {
       if (labelMode === 'selected' && !isHighlighted) continue;
 
       // Project 3D → 2D
-      const baseScale = node.type === 'directory' ? 0.25 : 0.12 + node.scale * 0.08;
+      // Same rule as the node mesh (and ConstellationNode's label) so the label sits above
+      // the node at any size setting.
+      const sizeScale = nodeStyles[getNodeStyleKey(node.type, node.language)].size / 100;
+      const baseScale = getNodeBaseScale(node.type, node.scale, sizeScale);
       _vec.set(node.x, node.y + baseScale * 2.5, node.z);
       _vec.project(camera);
 

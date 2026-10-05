@@ -111,6 +111,7 @@ export const useGraphStore = create<GraphState>((set, get) => ({
     const trimmed = path.trim();
     if (!trimmed) return 'Path is empty';
     set({ loading: true, error: null, selectedNodeId: null, connectedNodeIds: new Set() });
+    const versionBefore = get().graphVersion;
     try {
       const res = await fetch('/api/target', {
         method: 'POST',
@@ -121,28 +122,16 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         const data = await res.json().catch(() => ({ error: 'Request failed' }));
         throw new Error(data.error || `HTTP ${res.status}`);
       }
-      // Re-fetch the graph
-      const graphRes = await fetch('/api/graph');
-      if (!graphRes.ok) throw new Error('Failed to reload graph');
-      const graphData: GraphData = await graphRes.json();
-      const nodeMap = new Map<string, GraphNode>();
-      for (const node of graphData.nodes) nodeMap.set(node.id, node);
-      const adjacencyMap = new Map<string, Set<string>>();
-      for (const edge of graphData.edges) {
-        if (!adjacencyMap.has(edge.source)) adjacencyMap.set(edge.source, new Set());
-        if (!adjacencyMap.has(edge.target)) adjacencyMap.set(edge.target, new Set());
-        adjacencyMap.get(edge.source)!.add(edge.target);
-        adjacencyMap.get(edge.target)!.add(edge.source);
+      // The server broadcasts graph:update over WebSocket before answering the POST,
+      // and useWebSocket feeds it to setData. Only fetch the graph ourselves when that
+      // broadcast has not landed (socket down) — otherwise a second setData would
+      // restart the entry animation mid-way.
+      if (get().graphVersion === versionBefore) {
+        const graphRes = await fetch('/api/graph');
+        if (!graphRes.ok) throw new Error('Failed to reload graph');
+        get().setData(await graphRes.json() as GraphData);
       }
-      set(s => ({
-        data: graphData,
-        nodeMap,
-        adjacencyMap,
-        loading: false,
-        error: null,
-        targetPath: trimmed,
-        graphVersion: s.graphVersion + 1,
-      }));
+      set({ targetPath: trimmed, loading: false });
       return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to retarget';

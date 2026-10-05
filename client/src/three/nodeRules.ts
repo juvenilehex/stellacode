@@ -54,7 +54,8 @@ export function getAgentPulse(t: number, phase: number, sig: number, reducedMoti
 
 /**
  * sin wave that flattens to 0 under reduced motion — for decorative oscillation
- * (halo pulse, supernova flicker) so both renderers honor the OS setting the same way.
+ * (halo pulse, supernova flicker, agent trail sparkles, nebula breathing) so every
+ * scene layer honors the OS setting the same way.
  */
 export function motionSin(reducedMotion: boolean, x: number): number {
   return reducedMotion ? 0 : Math.sin(x);

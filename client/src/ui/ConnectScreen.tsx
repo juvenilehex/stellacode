@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { COLORS } from '../utils/colors';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useGraphStore } from '../store/graph-store';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 type Phase = 'idle' | 'connecting' | 'connected' | 'done';
 
@@ -14,50 +15,53 @@ interface ConnectScreenProps {
 function StarfieldCanvas({ className }: { className?: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const starsRef = useRef<Star[]>([]);
-  const frameRef = useRef(0);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
-    let raf: number;
+    let raf = 0;
 
     function resize() {
       canvas!.width = window.innerWidth;
       canvas!.height = window.innerHeight;
     }
     resize();
-    window.addEventListener('resize', resize);
 
-    // Generate stars
-    const stars: Star[] = [];
-    for (let i = 0; i < 300; i++) {
-      stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 1.8 + 0.3,
-        baseAlpha: Math.random() * 0.6 + 0.1,
-        twinkleSpeed: Math.random() * 2 + 0.5,
-        twinklePhase: Math.random() * Math.PI * 2,
-        drift: (Math.random() - 0.5) * 0.08,
-      });
+    // Generate stars once per mount — a reduced-motion toggle restarts this effect
+    // but must not reshuffle the sky.
+    if (starsRef.current.length === 0) {
+      const generated: Star[] = [];
+      for (let i = 0; i < 300; i++) {
+        generated.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: Math.random() * 1.8 + 0.3,
+          baseAlpha: Math.random() * 0.6 + 0.1,
+          twinkleSpeed: Math.random() * 2 + 0.5,
+          twinklePhase: Math.random() * Math.PI * 2,
+          drift: (Math.random() - 0.5) * 0.08,
+        });
+      }
+      // A few brighter "feature" stars
+      for (let i = 0; i < 12; i++) {
+        generated.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          size: Math.random() * 2.5 + 1.5,
+          baseAlpha: Math.random() * 0.3 + 0.5,
+          twinkleSpeed: Math.random() * 3 + 1,
+          twinklePhase: Math.random() * Math.PI * 2,
+          drift: (Math.random() - 0.5) * 0.03,
+        });
+      }
+      starsRef.current = generated;
     }
-    // A few brighter "feature" stars
-    for (let i = 0; i < 12; i++) {
-      stars.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        size: Math.random() * 2.5 + 1.5,
-        baseAlpha: Math.random() * 0.3 + 0.5,
-        twinkleSpeed: Math.random() * 3 + 1,
-        twinklePhase: Math.random() * Math.PI * 2,
-        drift: (Math.random() - 0.5) * 0.03,
-      });
-    }
-    starsRef.current = stars;
+    const stars = starsRef.current;
 
-    function draw(time: number) {
-      const t = time * 0.001;
+    /** Draw one frame. Reduced motion: twinkle frozen at each star's phase, no drift. */
+    function paint(t: number) {
       ctx.clearRect(0, 0, canvas!.width, canvas!.height);
 
       for (const star of stars) {
@@ -66,9 +70,11 @@ function StarfieldCanvas({ className }: { className?: string }) {
         if (alpha < 0.02) continue;
 
         // Slow vertical drift
-        star.y += star.drift;
-        if (star.y < -2) star.y = canvas!.height + 2;
-        if (star.y > canvas!.height + 2) star.y = -2;
+        if (!reducedMotion) {
+          star.y += star.drift;
+          if (star.y < -2) star.y = canvas!.height + 2;
+          if (star.y > canvas!.height + 2) star.y = -2;
+        }
 
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
@@ -88,16 +94,30 @@ function StarfieldCanvas({ className }: { className?: string }) {
           ctx.fill();
         }
       }
+    }
 
+    function draw(time: number) {
+      paint(time * 0.001);
       raf = requestAnimationFrame(draw);
     }
 
-    raf = requestAnimationFrame(draw);
+    // Resizing clears the canvas, so the static frame must be repainted on resize.
+    function onResize() {
+      resize();
+      if (reducedMotion) paint(0);
+    }
+    window.addEventListener('resize', onResize);
+
+    if (reducedMotion) {
+      paint(0);
+    } else {
+      raf = requestAnimationFrame(draw);
+    }
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', onResize);
     };
-  }, []);
+  }, [reducedMotion]);
 
   return (
     <canvas
