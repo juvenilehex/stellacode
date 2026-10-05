@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CONFIG } from '../config.js';
 import { computeLayout } from '../graph/layout.js';
+import { nextBuildId } from '../graph/builder.js';
 import type { GraphData } from '../graph/types.js';
 import type { WsBroadcaster } from '../ws.js';
 import type { ServerContext } from './types.js';
@@ -135,6 +136,15 @@ export function verifyGraphIntegrity(data: GraphData): IntegrityResult {
   };
 }
 
+/** User-facing reason a directory was refused as the new target */
+export function describeRejectedTarget(integrity: IntegrityResult): string {
+  if (integrity.nodeCount === 0) {
+    const exts = [...CONFIG.scanner.supportedExtensions].join(' ');
+    return `No supported source files in this directory (${exts})`;
+  }
+  return `Graph integrity check failed: ${integrity.errors[0]}`;
+}
+
 export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => IntegrityResult | null): Router {
   const router = Router();
 
@@ -209,14 +219,13 @@ export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => Inte
       return res.status(400).json({ error: 'Directory not found' });
     }
 
-    ctx.setTargetDir(resolved);
-    console.log(`[StellaCode] Target changed: ${resolved}`);
+    const integrity = ctx.switchTarget(resolved);
+    if (!integrity.valid) {
+      // 422: the path is a readable directory, but it yields no usable graph. Nothing
+      // was switched — the previous project stays on screen and on the server.
+      return res.status(422).json({ error: describeRejectedTarget(integrity), errors: integrity.errors });
+    }
 
-    // Restart watcher (handled by ServerContext)
-    ctx.getLiveWatcher().updateTarget(resolved);
-
-    ctx.agentTracker.updateTarget(resolved);
-    ctx.rebuildGraph();
     ctx.broadcaster.broadcast('graph:update', ctx.getGraphData());
 
     const report = judgeGraphQuality(ctx.getGraphData(), ctx.getParseSuccessCount(), ctx.getParseFailureCount());
@@ -263,6 +272,7 @@ export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => Inte
     const graphData = ctx.getGraphData();
     computeLayout(graphData.nodes, graphData.edges, { dirCohesion: multiplier });
     graphData.timestamp = Date.now();
+    graphData.buildId = nextBuildId();
 
     ctx.broadcaster.broadcast('graph:update', graphData);
     res.json({ dirCohesion: cohesionValue, multiplier });

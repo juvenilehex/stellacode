@@ -59,6 +59,10 @@ export interface GraphData {
   edges: GraphEdge[];
   rootDir: string;
   timestamp: number;
+  /** Server process that published this graph (new value after every restart) */
+  buildEpoch: string;
+  /** Grows with every graph the process publishes (build or relayout) */
+  buildId: number;
   stats: {
     totalFiles: number;
     totalDirs: number;

@@ -169,7 +169,7 @@ Data flow:
 | `GET /api/git/co-changes` | Temporal coupling analysis |
 | `GET /api/agent/events` | AI agent activity events |
 | `GET /api/agent/sessions` | Active agent sessions |
-| `POST /api/target` | Change target directory |
+| `POST /api/target` | Change target directory (422 with a reason, target unchanged, if the directory yields no valid graph — e.g. no supported source files) |
 
 WebSocket at `ws://localhost:3001/ws` pushes `graph:update`, `file:change`, and `agent:live` events.
 

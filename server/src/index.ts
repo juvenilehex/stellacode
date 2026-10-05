@@ -50,61 +50,97 @@ let lastParseSuccessCount = 0;
 let lastParseFailureCount = 0;
 let lastIntegrityResult: IntegrityResult | null = null;
 
-function rebuildGraph() {
+interface CandidateBuild {
+  graph: GraphData;
+  integrity: IntegrityResult;
+  parseSuccessCount: number;
+  parseFailureCount: number;
+  scannedCount: number;
+  buildDurationMs: number;
+}
+
+/** Parse `dir`, build its graph and verify it. Nothing is published here. */
+function buildCandidate(dir: string, tracker: AgentTracker): CandidateBuild {
   const start = Date.now();
-  const parseResult = parseProject(targetDir);
+  const parseResult = parseProject(dir);
 
   let coChanges;
   let fileGitMeta;
   let fileAgentMeta;
-  if (agentTracker.isGit) {
-    const commits = agentTracker.getGitLog(CONFIG.graphCoChangeLimit);
-    coChanges = agentTracker.getCoChanges(commits);
-    fileGitMeta = agentTracker.getFileGitMeta(commits);
-    fileAgentMeta = agentTracker.getFileAgentMeta(commits);
+  if (tracker.isGit) {
+    const commits = tracker.getGitLog(CONFIG.graphCoChangeLimit);
+    coChanges = tracker.getCoChanges(commits);
+    fileGitMeta = tracker.getFileGitMeta(commits);
+    fileAgentMeta = tracker.getFileAgentMeta(commits);
   }
 
-  const candidateGraph = buildGraph(parseResult.files, targetDir, { coChanges, fileGitMeta, fileAgentMeta });
+  const candidateGraph = buildGraph(parseResult.files, dir, { coChanges, fileGitMeta, fileAgentMeta });
   const buildDurationMs = Date.now() - start;
 
   // L3: Verify integrity
   const integrity = verifyGraphIntegrity(candidateGraph);
-  lastIntegrityResult = integrity;
-
   if (!integrity.valid) {
     console.error(`[L3:IntegrityCheck] FAILED — ${integrity.errors.length} error(s):`);
     for (const err of integrity.errors) {
       console.error(`  - ${err}`);
     }
-    if (graphData) {
-      console.warn('[L3:IntegrityCheck] Retaining previous valid graph');
-    } else {
-      graphData = candidateGraph;
-      console.warn('[L3:IntegrityCheck] No previous graph — using candidate despite errors');
-    }
-  } else {
-    graphData = candidateGraph;
   }
 
-  lastParseSuccessCount = parseResult.parseSuccessCount;
-  lastParseFailureCount = parseResult.parseFailureCount;
+  console.log(`[StellaCode] Graph built: ${candidateGraph.stats.totalFiles} files, ${candidateGraph.stats.totalEdges} edges (${buildDurationMs}ms)${integrity.valid ? '' : ' [INTEGRITY ERRORS]'}`);
 
-  // L6: Record build metrics and analyze
-  recordBuildMetrics({
-    timestamp: new Date().toISOString(),
-    scannedFiles: parseResult.scannedCount,
+  return {
+    graph: candidateGraph,
+    integrity,
     parseSuccessCount: parseResult.parseSuccessCount,
     parseFailureCount: parseResult.parseFailureCount,
-    graphNodes: candidateGraph.nodes.length,
-    graphEdges: candidateGraph.edges.length,
+    scannedCount: parseResult.scannedCount,
     buildDurationMs,
-    languageBreakdown: { ...candidateGraph.stats.languages },
-    totalSymbols: candidateGraph.stats.totalSymbols,
-    totalDirs: candidateGraph.stats.totalDirs,
+  };
+}
+
+/**
+ * Record a build of the current target as its L3 result and L6 metrics. A directory
+ * refused by switchTarget never becomes the target, so it is not recorded here —
+ * /api/integrity and the metrics keep describing the project that is on screen.
+ */
+function recordTargetBuild(build: CandidateBuild) {
+  lastIntegrityResult = build.integrity;
+  const g = build.graph;
+  recordBuildMetrics({
+    timestamp: new Date().toISOString(),
+    scannedFiles: build.scannedCount,
+    parseSuccessCount: build.parseSuccessCount,
+    parseFailureCount: build.parseFailureCount,
+    graphNodes: g.nodes.length,
+    graphEdges: g.edges.length,
+    buildDurationMs: build.buildDurationMs,
+    languageBreakdown: { ...g.stats.languages },
+    totalSymbols: g.stats.totalSymbols,
+    totalDirs: g.stats.totalDirs,
   });
   analyzeMetrics();
+}
 
-  console.log(`[StellaCode] Graph built: ${candidateGraph.stats.totalFiles} files, ${candidateGraph.stats.totalEdges} edges (${buildDurationMs}ms)${integrity.valid ? '' : ' [INTEGRITY ERRORS]'}`);
+function commitBuild(build: CandidateBuild) {
+  graphData = build.graph;
+  lastParseSuccessCount = build.parseSuccessCount;
+  lastParseFailureCount = build.parseFailureCount;
+}
+
+/**
+ * Rebuild the current target (startup and file changes). A build that fails the
+ * integrity check keeps the previous graph of the same project — a half-saved file
+ * should not blank the view. With no previous graph the candidate is all there is.
+ */
+function rebuildGraph() {
+  const build = buildCandidate(targetDir, agentTracker);
+  recordTargetBuild(build);
+  if (build.integrity.valid || !graphData) {
+    if (!build.integrity.valid) console.warn('[L3:IntegrityCheck] No previous graph — using candidate despite errors');
+    commitBuild(build);
+  } else {
+    console.warn('[L3:IntegrityCheck] Retaining previous valid graph');
+  }
 }
 
 rebuildGraph();
@@ -235,24 +271,42 @@ function onFileChange(event: { type: string; relativePath: string; filePath: str
 
 let activeWatcher = createWatcher(targetDir, onFileChange);
 
+/**
+ * Point the server at another directory. The candidate graph is built first and the
+ * switch happens only if it passes the integrity check — a rejected directory leaves
+ * the target, watchers, agent history and published graph exactly as they were.
+ * (Undoing a switch afterwards would not: agentTracker.updateTarget clears its events.)
+ */
+function switchTarget(dir: string): IntegrityResult {
+  // The parse cache is keyed by relative path, so another root must not read it.
+  clearParseCache();
+  const build = buildCandidate(dir, new AgentTracker(dir));
+  if (!build.integrity.valid) {
+    clearParseCache();
+    console.warn(`[StellaCode] Target rejected, staying on ${targetDir}`);
+    return build.integrity;
+  }
+
+  activeWatcher.close();
+  targetDir = dir;
+  activeWatcher = createWatcher(dir, onFileChange);
+  liveWatcher.updateTarget(dir);
+  agentTracker.updateTarget(dir);
+  recordTargetBuild(build);
+  commitBuild(build);
+  console.log(`[StellaCode] Target changed: ${dir}`);
+  return build.integrity;
+}
+
 // ── Server context for route modules ──
 const ctx: ServerContext = {
   getGraphData: () => graphData,
   getTargetDir: () => targetDir,
-  setTargetDir: (dir) => {
-    activeWatcher.close();
-    targetDir = dir;
-    clearParseCache(); // New target = new file set, invalidate cache
-    activeWatcher = createWatcher(dir, onFileChange);
-  },
+  switchTarget,
   agentTracker,
   broadcaster,
-  rebuildGraph,
   getParseSuccessCount: () => lastParseSuccessCount,
   getParseFailureCount: () => lastParseFailureCount,
-  getActiveWatcher: () => activeWatcher,
-  setActiveWatcher: (w) => { activeWatcher = w as ReturnType<typeof createWatcher>; },
-  getLiveWatcher: () => liveWatcher,
 };
 
 // ── Mount route modules ──

@@ -1,18 +1,16 @@
 import type { AgentTracker } from '../agent/tracker.js';
 import type { WsBroadcaster } from '../ws.js';
 import type { GraphData } from '../graph/types.js';
+import type { IntegrityResult } from './quality.js';
 
 /** Shared server context passed to route modules */
 export interface ServerContext {
   getGraphData: () => GraphData;
   getTargetDir: () => string;
-  setTargetDir: (dir: string) => void;
+  /** Build `dir` and switch to it only if the graph passes the integrity check */
+  switchTarget: (dir: string) => IntegrityResult;
   agentTracker: AgentTracker;
   broadcaster: WsBroadcaster;
-  rebuildGraph: () => void;
   getParseSuccessCount: () => number;
   getParseFailureCount: () => number;
-  getActiveWatcher: () => { close: () => void };
-  setActiveWatcher: (w: { close: () => void }) => void;
-  getLiveWatcher: () => { updateTarget: (dir: string) => void };
 }

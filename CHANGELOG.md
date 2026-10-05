@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduced motion (`prefers-reduced-motion: reduce`) now also stills the connect-screen starfield, AI agent trail sparkles and nebula clouds
 - Changing the target from the toolbar now replays the entry animation when the WebSocket is down, without restarting it when the broadcast already arrived
 - Node labels in large projects (>100 nodes) follow the node size setting instead of an older size formula
+- Changing the target to a folder with no supported source files (or any graph that fails the integrity check) now answers 422 with the reason and stays on the current project; before, it reported success, kept showing the old project and silently watched the new folder
+- A graph copy that arrives late (WebSocket vs HTTP) no longer replaces a newer one, and two builds in the same millisecond are no longer mistaken for one — graphs carry a per-process `buildEpoch` and growing `buildId`
+- Settings saved by an older version (missing a newer key) no longer crash the 3D view on load
 
 ## [1.3.0] - 2026-03-23
 

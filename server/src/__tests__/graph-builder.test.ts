@@ -274,6 +274,13 @@ describe('buildGraph - stats', () => {
     const graph = buildGraph([], '/root');
     expect(graph.timestamp).toBeGreaterThan(0);
   });
+
+  it('stamps each graph with this process epoch and a growing build id', () => {
+    const a = buildGraph([], '/root');
+    const b = buildGraph([], '/root');
+    expect(a.buildEpoch).toBe(b.buildEpoch);
+    expect(b.buildId).toBeGreaterThan(a.buildId);
+  });
 });
 
 describe('buildGraph - layout', () => {

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { ParsedFile } from '../parser/types.js';
 import type { GraphNode, GraphEdge, GraphData } from './types.js';
 import type { GitCoChange } from '../agent/types.js';
@@ -10,6 +11,20 @@ export interface BuildGraphOptions {
   fileGitMeta?: Map<string, { lastModified: number; firstCommit: number; commitCount: number }>;
   fileAgentMeta?: Map<string, { primaryAgent: string | null; agentRatio: number; lastAgent: string | null }>;
   layout?: LayoutOptions;
+}
+
+// Every graph this process publishes carries (buildEpoch, buildId). The same build reaches
+// the client twice (WebSocket broadcast and GET /api/graph, separate connections with no
+// ordering guarantee), and an older build can land after a newer one. The id only ever
+// grows within a process, so the client keeps the larger one. A restart starts a new
+// epoch: ids from different epochs are not compared, so no wall clock is involved.
+export const BUILD_EPOCH = randomUUID();
+let lastBuildId = 0;
+
+/** Next id for a published graph — buildGraph and relayout both take one. */
+export function nextBuildId(): number {
+  lastBuildId += 1;
+  return lastBuildId;
 }
 
 export function buildGraph(files: ParsedFile[], rootDir: string, options?: BuildGraphOptions): GraphData {
@@ -191,6 +206,8 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
     // to avoid leaking OS usernames and directory structure to API consumers.
     rootDir: path.basename(path.resolve(rootDir)),
     timestamp: Date.now(),
+    buildEpoch: BUILD_EPOCH,
+    buildId: nextBuildId(),
     stats: {
       totalFiles: files.length,
       totalDirs: dirSet.size,

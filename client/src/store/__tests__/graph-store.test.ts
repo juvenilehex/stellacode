@@ -2,13 +2,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useGraphStore } from '../graph-store';
 import type { GraphData, GraphNode, GraphEdge } from '../../types/graph';
 
-/** Factory for minimal valid GraphData */
+let nextId = 1000;
+/** Factory for minimal valid GraphData — each call is a new server build unless buildId is given */
 function makeGraph(overrides?: Partial<GraphData>): GraphData {
   return {
     nodes: [],
     edges: [],
     rootDir: '/test',
     timestamp: Date.now(),
+    buildEpoch: 'epoch-1',
+    buildId: nextId++,
     stats: { totalFiles: 0, totalDirs: 0, totalSymbols: 0, totalEdges: 0, languages: {} },
     ...overrides,
   };
@@ -87,19 +90,19 @@ describe('graph-store', () => {
     });
 
     it('increments graphVersion for each new server build', () => {
-      useGraphStore.getState().setData(makeGraph({ timestamp: 1000 }));
+      useGraphStore.getState().setData(makeGraph({ buildId: 1 }));
       expect(useGraphStore.getState().graphVersion).toBe(1);
 
-      useGraphStore.getState().setData(makeGraph({ timestamp: 2000 }));
+      useGraphStore.getState().setData(makeGraph({ buildId: 2 }));
       expect(useGraphStore.getState().graphVersion).toBe(2);
     });
 
     it('a repeat of the current build (WS + GET race) keeps the entry animation running', () => {
-      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, nodes: [makeNode('a')] }));
+      useGraphStore.getState().setData(makeGraph({ buildId: 5, nodes: [makeNode('a')] }));
       useGraphStore.getState().tickEntry(1);
       useGraphStore.setState({ loading: true, error: 'stale' });
 
-      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, nodes: [makeNode('a')] }));
+      useGraphStore.getState().setData(makeGraph({ buildId: 5, nodes: [makeNode('a')] }));
 
       const s = useGraphStore.getState();
       expect(s.graphVersion).toBe(1);
@@ -108,9 +111,25 @@ describe('graph-store', () => {
       expect(s.error).toBeNull();
     });
 
-    it('same timestamp from a different root is a new graph', () => {
-      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, rootDir: '/a' }));
-      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, rootDir: '/b' }));
+    it('an older build landing after a newer one does not replace it', () => {
+      const newer = makeGraph({ buildId: 8, nodes: [makeNode('new')] });
+      useGraphStore.getState().setData(newer);
+      useGraphStore.getState().setData(makeGraph({ buildId: 7, nodes: [makeNode('old')] }));
+      const s = useGraphStore.getState();
+      expect(s.data).toBe(newer);
+      expect(s.nodeMap.has('old')).toBe(false);
+      expect(s.graphVersion).toBe(1);
+    });
+
+    it('two builds in the same millisecond are still two builds', () => {
+      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, buildId: 1 }));
+      useGraphStore.getState().setData(makeGraph({ timestamp: 1000, buildId: 2 }));
+      expect(useGraphStore.getState().graphVersion).toBe(2);
+    });
+
+    it('a restarted server (new epoch) is accepted even with a smaller build id', () => {
+      useGraphStore.getState().setData(makeGraph({ buildEpoch: 'before-restart', buildId: 40 }));
+      useGraphStore.getState().setData(makeGraph({ buildEpoch: 'after-restart', buildId: 1 }));
       expect(useGraphStore.getState().graphVersion).toBe(2);
     });
 
@@ -302,6 +321,44 @@ describe('graph-store', () => {
       expect(s.graphVersion).toBe(1);
       expect(s.targetPath).toBe('/next');
       expect(s.loading).toBe(false);
+    });
+
+    it('refused target (422): reason returned, targetPath and graph unchanged, no global error', async () => {
+      const shown = makeGraph({ nodes: [makeNode('kept')] });
+      useGraphStore.getState().setData(shown);
+      useGraphStore.setState({ targetPath: '/previous' });
+      const calls: string[] = [];
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+        calls.push(url);
+        return { ok: false, status: 422, json: async () => ({ error: 'No supported source files in this directory (.ts)' }) };
+      }));
+      const err = await useGraphStore.getState().retarget('/empty');
+      const s = useGraphStore.getState();
+      expect(err).toBe('No supported source files in this directory (.ts)');
+      expect(calls).toEqual(['/api/target']);
+      expect(s.targetPath).toBe('/previous');
+      expect(s.data).toBe(shown);
+      expect(s.error).toBeNull();
+      expect(s.loading).toBe(false);
+    });
+
+    it('server error (5xx) on the switch: may be half switched, so the error is global', async () => {
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({ error: 'Internal server error' }) })));
+      const err = await useGraphStore.getState().retarget('/next');
+      expect(err).toBe('Internal server error');
+      expect(useGraphStore.getState().error).toBe('Internal server error');
+    });
+
+    it('switched but the graph failed to load: targetPath follows the server and the error is global', async () => {
+      useGraphStore.setState({ targetPath: '/previous' });
+      vi.stubGlobal('fetch', vi.fn(async (url: string) => (
+        url === '/api/graph' ? { ok: false, status: 500, json: async () => ({}) } : json({ target: '/next', stats: {} })
+      )));
+      const err = await useGraphStore.getState().retarget('/next');
+      const s = useGraphStore.getState();
+      expect(err).toMatch(/Switched to \/next/);
+      expect(s.targetPath).toBe('/next');
+      expect(s.error).toBe(err);
     });
 
     it('WebSocket copy of the same build landed first: the GET copy does not restart the entry animation', async () => {

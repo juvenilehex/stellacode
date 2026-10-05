@@ -108,6 +108,32 @@ const DEFAULT_EDGE_STYLES: Record<EdgeStyleKey, EdgeStyle> = {
   coChangeEdge:  { weight: 1, opacity: 15 },
 };
 
+type Persisted = Partial<Pick<SettingsState, 'panels' | 'colors' | 'edgeStyles' | 'nodeStyles'>> & Record<string, unknown>;
+
+/**
+ * Restore a saved state written by an older version. persist's default merge is shallow
+ * ({...current, ...saved}), so a saved `nodeStyles` without a key added since (a new
+ * language category, say) replaces the whole record and `nodeStyles[key]` is undefined
+ * at render — the 3D view throws and "retry" cannot recover because the save is reread.
+ * The four keyed records are merged key by key; values the user saved always win.
+ */
+export function mergePersistedSettings(saved: unknown, current: SettingsState): SettingsState {
+  const s = (saved ?? {}) as Persisted;
+  const byKey = <T extends object>(cur: Record<string, T>, old: Record<string, T> | undefined) => {
+    const out: Record<string, T> = { ...cur };
+    for (const [k, v] of Object.entries(old ?? {})) out[k] = { ...cur[k], ...v };
+    return out;
+  };
+  return {
+    ...current,
+    ...s,
+    panels: { ...current.panels, ...s.panels },
+    colors: { ...current.colors, ...s.colors },
+    edgeStyles: byKey(current.edgeStyles, s.edgeStyles) as SettingsState['edgeStyles'],
+    nodeStyles: byKey(current.nodeStyles, s.nodeStyles) as SettingsState['nodeStyles'],
+  };
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -194,6 +220,6 @@ export const useSettingsStore = create<SettingsState>()(
       setTheme: (id) => set({ theme: id }),
       getThemeConfig: (): Theme => getTheme(get().theme),
     }),
-    { name: 'stellacode-settings' },
+    { name: 'stellacode-settings', merge: mergePersistedSettings },
   ),
 );

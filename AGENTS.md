@@ -91,9 +91,9 @@ npm run lint             # 타입 체크 (server + client)
 | `GET /api/git/co-changes` | 시간적 커플링 분석 |
 | `GET /api/agent/events` | AI 에이전트 활동 이벤트 |
 | `GET /api/agent/sessions` | 활성 에이전트 세션 |
-| `POST /api/target` | 대상 디렉토리 변경 |
+| `POST /api/target` | 대상 디렉토리 변경. 그 디렉터리 그래프가 무결성 검사에 실패(지원 확장자 파일 0 등)하면 422 + 사유, 대상은 그대로 |
 
-WebSocket: `ws://localhost:3001/ws` -- `graph:update`, `file:change`, `agent:live` 이벤트
+WebSocket: `ws://localhost:3001/ws` -- `graph:update`, `file:change`, `agent:live` 이벤트. 그래프(GET·WS 공통)는 `buildEpoch`(서버 프로세스)·`buildId`(프로세스 안에서 증가)를 달고, 클라는 같은 epoch 에서 id 가 크지 않은 사본을 무시한다
 
 ## 환경 변수
 

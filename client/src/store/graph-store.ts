@@ -71,13 +71,13 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   timelineVisibleIds: null,
 
   setData: (data) => {
-    // The same server build can arrive twice — the WebSocket graph:update broadcast and
-    // an HTTP GET /api/graph race each other after a retarget, and neither order is
-    // guaranteed. Every server build stamps a fresh timestamp (builder.ts, relayout), so
-    // a repeat of the current build only settles loading/error and keeps the entry
-    // animation running instead of restarting it.
+    // A server build can arrive twice (WebSocket graph:update and GET /api/graph race on
+    // separate connections), and an older build can land after a newer one. The server
+    // stamps every published graph with a growing buildId per process (buildEpoch), so a
+    // copy that is not newer than what is on screen only settles loading/error and keeps
+    // the entry animation running. A new epoch means the server restarted: always newer.
     const current = get().data;
-    if (current && current.timestamp === data.timestamp && current.rootDir === data.rootDir) {
+    if (current && current.buildEpoch === data.buildEpoch && data.buildId <= current.buildId) {
       set({ loading: false, error: null });
       return;
     }
@@ -128,18 +128,30 @@ export const useGraphStore = create<GraphState>((set, get) => ({
         body: JSON.stringify({ path: trimmed }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Request failed' }));
-        throw new Error(data.error || `HTTP ${res.status}`);
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        const reason: string = data.error || `HTTP ${res.status}`;
+        // 5xx: the server failed mid-request and may be half switched — global error below.
+        if (res.status >= 500) throw new Error(reason);
+        // 4xx refusal (bad path, rate limit, or a directory with no usable graph): the
+        // server did not switch, so the current graph and targetPath stay. Both callers
+        // (the toolbar's target row and the connect screen) show the reason where it was typed.
+        set({ loading: false });
+        return reason;
       }
+      // The server has switched from here on — record it before loading the graph, so a
+      // failed load below never leaves the old path next to a server on the new one.
+      set({ targetPath: trimmed });
       // The server also broadcasts this build over WebSocket; whichever copy lands
       // second is a no-op in setData. Fetching here keeps retarget working with no
       // socket at all (the connect screen runs before the WebSocket hook mounts).
       const graphRes = await fetch('/api/graph');
-      if (!graphRes.ok) throw new Error('Failed to reload graph');
+      if (!graphRes.ok) throw new Error(`Switched to ${trimmed}, but its graph failed to load (HTTP ${graphRes.status})`);
       get().setData(await graphRes.json() as GraphData);
-      set({ targetPath: trimmed, loading: false });
+      set({ loading: false });
       return null;
     } catch (err) {
+      // Network failure or a switched target whose graph did not load: what is on
+      // screen no longer matches the server, so the global error state says so.
       const msg = err instanceof Error ? err.message : 'Failed to retarget';
       set({ error: msg, loading: false });
       return msg;

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useSettingsStore } from '../settings-store';
+import { useSettingsStore, mergePersistedSettings } from '../settings-store';
 
 /**
  * settings-store resetColors 회귀 테스트 (R238 자가발전).
@@ -49,5 +49,27 @@ describe('settings-store resetColors (R231 drift 회귀)', () => {
     useSettingsStore.getState().resetColors();
     // 두 번째 reset도 깨끗한 기본값이어야 (DEFAULT_EDGE_STYLES가 in-place mutate 안 됨)
     expect(useSettingsStore.getState().edgeStyles.coChangeEdge).toEqual({ weight: 1, opacity: 15 });
+  });
+});
+
+describe('mergePersistedSettings — a save from an older version (R572)', () => {
+  it('[SPEC] keys missing from saved records come from the current defaults; saved values win', () => {
+    const current = useSettingsStore.getState();
+    const merged = mergePersistedSettings({
+      fontSize: 15,
+      panels: { legend: false },
+      colors: { python: '#123456' },
+      edgeStyles: { importEdge: { opacity: 55 } },
+      nodeStyles: { python: { size: 150 } },
+    }, current);
+    expect(merged.fontSize).toBe(15);
+    expect(merged.panels.legend).toBe(false);
+    expect(merged.panels.search).toBe(current.panels.search);
+    expect(merged.colors.python).toBe('#123456');
+    expect(merged.colors.typescript).toBe(current.colors.typescript);
+    expect(merged.edgeStyles.importEdge).toEqual({ weight: current.edgeStyles.importEdge.weight, opacity: 55 });
+    expect(merged.edgeStyles.coChangeEdge).toEqual(current.edgeStyles.coChangeEdge);
+    expect(merged.nodeStyles.python).toEqual({ opacity: current.nodeStyles.python.opacity, size: 150 });
+    expect(merged.nodeStyles.typescript).toEqual(current.nodeStyles.typescript);
   });
 });

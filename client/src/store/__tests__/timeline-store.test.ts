@@ -21,7 +21,7 @@ function makeNode(id: string, type: GraphNode['type'] = 'file'): GraphNode {
 
 function makeGraph(nodes: GraphNode[]): GraphData {
   return {
-    nodes, edges: [], rootDir: '/test', timestamp: 0,
+    nodes, edges: [], rootDir: '/test', timestamp: 0, buildEpoch: 'test', buildId: 1,
     stats: { totalFiles: 0, totalDirs: 0, totalSymbols: 0, totalEdges: 0, languages: {} },
   };
 }
