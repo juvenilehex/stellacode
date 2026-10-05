@@ -81,13 +81,14 @@ export const AgentEventType = Object.freeze({
 } as const);
 export type AgentEventType = (typeof AgentEventType)[keyof typeof AgentEventType];
 
-/** WebSocket message types */
+/** WebSocket message types the server sends (ws.ts takes its message type from here) */
 export const WsMessageType = Object.freeze({
+  CONNECTED: 'connected',
   GRAPH_UPDATE: 'graph:update',
   FILE_CHANGE: 'file:change',
   AGENT_LIVE: 'agent:live',
   QUALITY_ALERT: 'quality:alert',
-  ERROR: 'error',
+  BUILD_INTEGRITY: 'build:integrity',
 } as const);
 export type WsMessageType = (typeof WsMessageType)[keyof typeof WsMessageType];
 

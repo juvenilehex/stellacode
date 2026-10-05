@@ -4,24 +4,14 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseProject, clearParseCache } from './parser/index.js';
-import { buildGraph } from './graph/builder.js';
-import { computeLayout } from './graph/layout.js';
 import { WsBroadcaster } from './ws.js';
-import { createWatcher } from './watcher.js';
-import { AgentTracker } from './agent/tracker.js';
-import { LiveAgentWatcher } from './agent/live-watcher.js';
+import type { FileChangeEvent } from './watcher.js';
+import { TargetSession } from './target-session.js';
 import { CONFIG } from './config.js';
-import { recordBuildMetrics, analyzeMetrics } from './metrics.js';
 import { createGraphRoutes } from './routes/graph.js';
 import { createGitRoutes } from './routes/git.js';
 import { createMetricsRoutes } from './routes/metrics.js';
-import {
-  createQualityRoutes,
-  judgeGraphQuality, broadcastQualityReport, verifyGraphIntegrity,
-  type IntegrityResult,
-} from './routes/quality.js';
-import type { GraphData } from './graph/types.js';
+import { createQualityRoutes, judgeGraphQuality, broadcastQualityReport } from './routes/quality.js';
 import type { ServerContext } from './routes/types.js';
 
 const PORT = CONFIG.port;
@@ -36,114 +26,10 @@ function getTarget(): string {
   return process.env.STELLA_TARGET ?? '.';
 }
 
-let targetDir = path.resolve(getTarget());
+const initialTarget = path.resolve(getTarget());
 
-console.log(`[StellaCode] Target: ${targetDir}`);
+console.log(`[StellaCode] Target: ${initialTarget}`);
 console.log(`[StellaCode] Port: ${PORT}`);
-
-// Agent tracker
-const agentTracker = new AgentTracker(targetDir);
-
-// Parse project
-let graphData: GraphData;
-let lastParseSuccessCount = 0;
-let lastParseFailureCount = 0;
-let lastIntegrityResult: IntegrityResult | null = null;
-
-interface CandidateBuild {
-  graph: GraphData;
-  integrity: IntegrityResult;
-  parseSuccessCount: number;
-  parseFailureCount: number;
-  scannedCount: number;
-  buildDurationMs: number;
-}
-
-/** Parse `dir`, build its graph and verify it. Nothing is published here. */
-function buildCandidate(dir: string, tracker: AgentTracker): CandidateBuild {
-  const start = Date.now();
-  const parseResult = parseProject(dir);
-
-  let coChanges;
-  let fileGitMeta;
-  let fileAgentMeta;
-  if (tracker.isGit) {
-    const commits = tracker.getGitLog(CONFIG.graphCoChangeLimit);
-    coChanges = tracker.getCoChanges(commits);
-    fileGitMeta = tracker.getFileGitMeta(commits);
-    fileAgentMeta = tracker.getFileAgentMeta(commits);
-  }
-
-  const candidateGraph = buildGraph(parseResult.files, dir, { coChanges, fileGitMeta, fileAgentMeta });
-  const buildDurationMs = Date.now() - start;
-
-  // L3: Verify integrity
-  const integrity = verifyGraphIntegrity(candidateGraph);
-  if (!integrity.valid) {
-    console.error(`[L3:IntegrityCheck] FAILED — ${integrity.errors.length} error(s):`);
-    for (const err of integrity.errors) {
-      console.error(`  - ${err}`);
-    }
-  }
-
-  console.log(`[StellaCode] Graph built: ${candidateGraph.stats.totalFiles} files, ${candidateGraph.stats.totalEdges} edges (${buildDurationMs}ms)${integrity.valid ? '' : ' [INTEGRITY ERRORS]'}`);
-
-  return {
-    graph: candidateGraph,
-    integrity,
-    parseSuccessCount: parseResult.parseSuccessCount,
-    parseFailureCount: parseResult.parseFailureCount,
-    scannedCount: parseResult.scannedCount,
-    buildDurationMs,
-  };
-}
-
-/**
- * Record a build of the current target as its L3 result and L6 metrics. A directory
- * refused by switchTarget never becomes the target, so it is not recorded here —
- * /api/integrity and the metrics keep describing the project that is on screen.
- */
-function recordTargetBuild(build: CandidateBuild) {
-  lastIntegrityResult = build.integrity;
-  const g = build.graph;
-  recordBuildMetrics({
-    timestamp: new Date().toISOString(),
-    scannedFiles: build.scannedCount,
-    parseSuccessCount: build.parseSuccessCount,
-    parseFailureCount: build.parseFailureCount,
-    graphNodes: g.nodes.length,
-    graphEdges: g.edges.length,
-    buildDurationMs: build.buildDurationMs,
-    languageBreakdown: { ...g.stats.languages },
-    totalSymbols: g.stats.totalSymbols,
-    totalDirs: g.stats.totalDirs,
-  });
-  analyzeMetrics();
-}
-
-function commitBuild(build: CandidateBuild) {
-  graphData = build.graph;
-  lastParseSuccessCount = build.parseSuccessCount;
-  lastParseFailureCount = build.parseFailureCount;
-}
-
-/**
- * Rebuild the current target (startup and file changes). A build that fails the
- * integrity check keeps the previous graph of the same project — a half-saved file
- * should not blank the view. With no previous graph the candidate is all there is.
- */
-function rebuildGraph() {
-  const build = buildCandidate(targetDir, agentTracker);
-  recordTargetBuild(build);
-  if (build.integrity.valid || !graphData) {
-    if (!build.integrity.valid) console.warn('[L3:IntegrityCheck] No previous graph — using candidate despite errors');
-    commitBuild(build);
-  } else {
-    console.warn('[L3:IntegrityCheck] Retaining previous valid graph');
-  }
-}
-
-rebuildGraph();
 
 // Express app
 const app = express();
@@ -221,7 +107,7 @@ const server = http.createServer(app);
 const broadcaster = new WsBroadcaster(server);
 
 // L2=8: Initialize quality timeseries persistence
-broadcaster.usageTracker.initTimeseries(path.join(targetDir, '.stellacode', 'data'));
+broadcaster.usageTracker.initTimeseries(path.join(initialTarget, '.stellacode', 'data'));
 
 // ── Usage tracking middleware (L2) ──
 app.use((req, _res, next) => {
@@ -242,18 +128,13 @@ if (fs.existsSync(clientDistPath) && fs.statSync(clientDistPath).isDirectory()) 
   app.use(express.static(clientDistPath));
 }
 
-// Live agent watcher
-let liveWatcher = new LiveAgentWatcher(targetDir, (event) => {
-  broadcaster.broadcast('agent:live', event);
-});
-
-// File watcher
+// File watcher → debounced rebuild of the session's current target
 let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
 
-function onFileChange(event: { type: string; relativePath: string; filePath: string; timestamp: number }) {
+function onFileChange(event: FileChangeEvent) {
   console.log(`[Watch] ${event.type}: ${event.relativePath}`);
 
-  const agentEvent = agentTracker.trackFileChange(
+  const agentEvent = session.agentTracker.trackFileChange(
     event.relativePath,
     event.type === 'add' ? 'file_create' : event.type === 'unlink' ? 'file_delete' : 'file_edit'
   );
@@ -262,58 +143,31 @@ function onFileChange(event: { type: string; relativePath: string; filePath: str
 
   if (rebuildTimeout) clearTimeout(rebuildTimeout);
   rebuildTimeout = setTimeout(() => {
-    rebuildGraph();
+    session.rebuild();
+    const graphData = session.getGraphData();
     broadcaster.broadcast('graph:update', graphData);
-    const report = judgeGraphQuality(graphData, lastParseSuccessCount, lastParseFailureCount);
+    const report = judgeGraphQuality(graphData, session.getParseSuccessCount(), session.getParseFailureCount());
     broadcastQualityReport(broadcaster, report);
   }, CONFIG.watcher.rebuildDelay);
 }
 
-let activeWatcher = createWatcher(targetDir, onFileChange);
-
-/**
- * Point the server at another directory. The candidate graph is built first and the
- * switch happens only if it passes the integrity check — a rejected directory leaves
- * the target, watchers, agent history and published graph exactly as they were.
- * (Undoing a switch afterwards would not: agentTracker.updateTarget clears its events.)
- */
-function switchTarget(dir: string): IntegrityResult {
-  // The parse cache is keyed by relative path, so another root must not read it.
-  clearParseCache();
-  const build = buildCandidate(dir, new AgentTracker(dir));
-  if (!build.integrity.valid) {
-    clearParseCache();
-    console.warn(`[StellaCode] Target rejected, staying on ${targetDir}`);
-    return build.integrity;
-  }
-
-  activeWatcher.close();
-  targetDir = dir;
-  activeWatcher = createWatcher(dir, onFileChange);
-  liveWatcher.updateTarget(dir);
-  agentTracker.updateTarget(dir);
-  recordTargetBuild(build);
-  commitBuild(build);
-  console.log(`[StellaCode] Target changed: ${dir}`);
-  return build.integrity;
-}
+// Builds the initial target and starts the file and live-agent watchers.
+const session = new TargetSession(initialTarget, {
+  onFileChange,
+  onLiveEvent: (event) => broadcaster.broadcast('agent:live', event),
+  // Every recorded build of the target (a retained-graph failure included) — the
+  // client shows a failed latest build next to the graph it kept.
+  onBuildRecorded: (integrity) => broadcaster.broadcast('build:integrity', integrity),
+});
 
 // ── Server context for route modules ──
-const ctx: ServerContext = {
-  getGraphData: () => graphData,
-  getTargetDir: () => targetDir,
-  switchTarget,
-  agentTracker,
-  broadcaster,
-  getParseSuccessCount: () => lastParseSuccessCount,
-  getParseFailureCount: () => lastParseFailureCount,
-};
+const ctx: ServerContext = { session, broadcaster };
 
 // ── Mount route modules ──
 app.use('/api', createGraphRoutes(ctx));
 app.use('/api', createGitRoutes(ctx));
 app.use('/api', createMetricsRoutes(ctx));
-app.use('/api', createQualityRoutes(ctx, () => lastIntegrityResult));
+app.use('/api', createQualityRoutes(ctx));
 
 // ── SPA fallback ──
 const indexHtmlPath = path.join(clientDistPath, 'index.html');
@@ -338,7 +192,7 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`[StellaCode] Server running at http://localhost:${PORT}`);
   console.log(`[StellaCode] WebSocket at ws://localhost:${PORT}/ws`);
   console.log(`[StellaCode] API: GET /api/graph, /api/stats, /api/target`);
-  const initialReport = judgeGraphQuality(graphData, lastParseSuccessCount, lastParseFailureCount);
+  const initialReport = judgeGraphQuality(session.getGraphData(), session.getParseSuccessCount(), session.getParseFailureCount());
   if (!initialReport.passed) {
     for (const alert of initialReport.alerts) {
       console.log(`[QualityJudge] ${alert.level.toUpperCase()}: ${alert.message}`);
@@ -349,8 +203,7 @@ server.listen(PORT, '127.0.0.1', () => {
 // Graceful shutdown
 function shutdown() {
   console.log('[StellaCode] Shutting down...');
-  activeWatcher.close();
-  liveWatcher.close();
+  session.close();
   broadcaster.close();
   server.close();
 }

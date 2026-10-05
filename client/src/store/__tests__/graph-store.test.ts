@@ -62,6 +62,10 @@ describe('graph-store', () => {
       entryProgress: 0,
       entryActive: false,
       timelineVisibleIds: null,
+      serverEpoch: null,
+      retiredEpochs: new Set(),
+      buildStatus: null,
+      buildFailure: null,
     });
   });
 
@@ -133,12 +137,58 @@ describe('graph-store', () => {
       expect(useGraphStore.getState().graphVersion).toBe(2);
     });
 
+    it('a late copy from the process that restarted does not replace the new one (R575)', () => {
+      useGraphStore.getState().setData(makeGraph({ buildEpoch: 'before-restart', buildId: 40 }));
+      const fresh = makeGraph({ buildEpoch: 'after-restart', buildId: 1 });
+      useGraphStore.getState().setData(fresh);
+      // an open GET answered by the old process lands after the new server's broadcast
+      useGraphStore.getState().setData(makeGraph({ buildEpoch: 'before-restart', buildId: 41 }));
+      expect(useGraphStore.getState().data).toBe(fresh);
+      expect(useGraphStore.getState().graphVersion).toBe(2);
+      expect(useGraphStore.getState().loading).toBe(false);
+    });
+
     it('triggers entry animation', () => {
       useGraphStore.getState().setData(makeGraph());
 
       const state = useGraphStore.getState();
       expect(state.entryProgress).toBe(0);
       expect(state.entryActive).toBe(true);
+    });
+  });
+
+  describe('setBuildStatus (R575)', () => {
+    const status = (valid: boolean, buildId: number, buildEpoch = 'epoch-1') => ({
+      valid, nodeCount: valid ? 3 : 0, edgeCount: 0, errors: valid ? [] : ['Graph has 0 nodes — empty graph produced'],
+      timestamp: 1_700_000_000_000, buildEpoch, buildId,
+    });
+
+    it('a failed latest build is shown with its time and errors; a later good build clears it', () => {
+      useGraphStore.getState().setBuildStatus(status(false, 5));
+      expect(useGraphStore.getState().buildFailure).toEqual({ at: 1_700_000_000_000, errors: ['Graph has 0 nodes — empty graph produced'] });
+      useGraphStore.getState().setBuildStatus(status(true, 6));
+      expect(useGraphStore.getState().buildFailure).toBeNull();
+    });
+
+    it('an older status landing after a newer one is ignored (GET /api/integrity vs WS push)', () => {
+      useGraphStore.getState().setBuildStatus(status(true, 9));
+      useGraphStore.getState().setBuildStatus(status(false, 8));
+      expect(useGraphStore.getState().buildFailure).toBeNull();
+    });
+
+    it('a status from a restarted server is taken; the retired process cannot overwrite it', () => {
+      useGraphStore.getState().setBuildStatus(status(false, 30, 'old'));
+      useGraphStore.getState().setBuildStatus(status(true, 1, 'new'));
+      expect(useGraphStore.getState().buildFailure).toBeNull();
+      useGraphStore.getState().setBuildStatus(status(false, 31, 'old'));
+      expect(useGraphStore.getState().buildFailure).toBeNull();
+    });
+
+    it('relayout (a new graph build id, no new status) leaves a failure in place', () => {
+      useGraphStore.getState().setData(makeGraph({ buildId: 4 }));
+      useGraphStore.getState().setBuildStatus(status(false, 5));
+      useGraphStore.getState().setData(makeGraph({ buildId: 6 }));
+      expect(useGraphStore.getState().buildFailure).not.toBeNull();
     });
   });
 

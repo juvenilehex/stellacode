@@ -5,7 +5,7 @@ export function createGraphRoutes(ctx: ServerContext): Router {
   const router = Router();
 
   router.get('/graph', (_req, res) => {
-    res.json(ctx.getGraphData());
+    res.json(ctx.session.getGraphData());
   });
 
   router.get('/graph/node/:id', (req, res) => {
@@ -14,7 +14,7 @@ export function createGraphRoutes(ctx: ServerContext): Router {
     const nodeId = decodeURIComponent(raw);
     if (nodeId.length > 4096) return res.status(400).json({ error: 'ID too long' });
 
-    const graphData = ctx.getGraphData();
+    const graphData = ctx.session.getGraphData();
     const node = graphData.nodes.find(n => n.id === nodeId);
     if (!node) return res.status(404).json({ error: 'Node not found' });
 
@@ -27,7 +27,7 @@ export function createGraphRoutes(ctx: ServerContext): Router {
   });
 
   router.get('/stats', (_req, res) => {
-    res.json(ctx.getGraphData().stats);
+    res.json(ctx.session.getGraphData().stats);
   });
 
   return router;

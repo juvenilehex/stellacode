@@ -7,7 +7,7 @@ import express from 'express';
 import { judgeGraphQuality, verifyGraphIntegrity, createQualityRoutes, describeRejectedTarget, type IntegrityResult } from '../routes/quality.js';
 import type { ServerContext } from '../routes/types.js';
 import type { WsBroadcaster } from '../ws.js';
-import type { AgentTracker } from '../agent/tracker.js';
+import { TargetSession } from '../target-session.js';
 import type { GraphData, GraphNode, GraphEdge, NodeMeta } from '../graph/types.js';
 
 /**
@@ -147,58 +147,77 @@ describe('verifyGraphIntegrity (R276)', () => {
   });
 });
 
-describe('POST /target — a directory with no usable graph is refused (R572)', () => {
-  const failed: IntegrityResult = { valid: false, nodeCount: 0, edgeCount: 0, errors: ['Graph has 0 nodes — empty graph produced'], timestamp: 0 };
-  const passed: IntegrityResult = { valid: true, nodeCount: 1, edgeCount: 0, errors: [], timestamp: 0 };
+describe('POST /target — a directory with no usable graph is refused (R572, real session R575)', () => {
+  // The route runs against a real TargetSession on temporary directories (R575): the
+  // build, integrity check, refusal and commit are the production code, not a stub.
   let server: http.Server | null = null;
-  let dir = '';
-  afterEach(() => {
+  let session: TargetSession | null = null;
+  const dirs: string[] = [];
+  afterEach(async () => {
     server?.close(); server = null;
-    if (dir) fs.rmSync(dir, { recursive: true, force: true });
+    await session?.close(); session = null;
+    for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
   });
 
-  async function post(result: IntegrityResult) {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stella-r572-'));
+  function tempProject(files: Record<string, string>): string {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stella-r575-'));
+    dirs.push(dir);
+    for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(dir, name), body);
+    return dir;
+  }
+
+  async function start() {
+    const initial = tempProject({ 'a.ts': 'export const a = 1;\n' });
     const broadcasts: string[] = [];
-    const switched: string[] = [];
-    const graph = makeGraph([makeNode('a')]);
+    session = new TargetSession(initial, { onFileChange: () => {}, onLiveEvent: () => {}, onBuildRecorded: () => {} });
     const ctx: ServerContext = {
-      getGraphData: () => graph,
-      getTargetDir: () => '/previous',
-      switchTarget: (d) => { switched.push(d); return result; },
-      agentTracker: {} as AgentTracker,
+      session,
       broadcaster: { broadcast: (type: string) => { broadcasts.push(type); } } as unknown as WsBroadcaster,
-      getParseSuccessCount: () => 1,
-      getParseFailureCount: () => 0,
     };
     const app = express();
     app.use(express.json());
-    app.use('/api', createQualityRoutes(ctx, () => null));
+    app.use('/api', createQualityRoutes(ctx));
     server = http.createServer(app);
     await new Promise<void>(r => server!.listen(0, '127.0.0.1', () => r()));
     const { port } = server.address() as { port: number };
-    const res = await fetch(`http://127.0.0.1:${port}/api/target`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: dir }),
-    });
-    return { status: res.status, body: await res.json() as Record<string, unknown>, broadcasts, switched };
+    const post = async (dir: string) => {
+      const res = await fetch(`http://127.0.0.1:${port}/api/target`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: dir }),
+      });
+      return { status: res.status, body: await res.json() as Record<string, unknown> };
+    };
+    const integrity = async () => (await fetch(`http://127.0.0.1:${port}/api/integrity`)).json() as Promise<IntegrityResult>;
+    return { initial, broadcasts, post, integrity, session };
   }
 
-  it('[SPEC] integrity failure → 422 with a readable reason, nothing broadcast', async () => {
-    const r = await post(failed);
+  it('[SPEC] integrity failure → 422 with a readable reason, nothing broadcast, target and graph unchanged', async () => {
+    const t = await start();
+    const before = t.session.getGraphData();
+    const empty = tempProject({ 'notes.txt': 'no source here' });
+    const r = await t.post(empty);
     expect(r.status).toBe(422);
-    expect(r.body.error).toBe(describeRejectedTarget(failed));
-    expect(r.broadcasts).toEqual([]);
-    expect(r.switched).toEqual([path.resolve(dir)]);
+    expect(r.body.error).toMatch(/No supported source files/);
+    expect(t.broadcasts).toEqual([]);
+    expect(t.session.getTargetDir()).toBe(t.initial);
+    expect(t.session.getGraphData()).toBe(before);
+    // /api/integrity keeps describing the project on screen, not the refused directory
+    expect((await t.integrity()).valid).toBe(true);
   });
 
-  it('[SPEC] valid graph → 200 and the new graph is broadcast', async () => {
-    const r = await post(passed);
+  it('[SPEC] valid graph → 200, the target switches and the new graph is broadcast', async () => {
+    const t = await start();
+    const next = tempProject({ 'b.ts': "import { c } from './c';\nexport const b = c;\n", 'c.ts': 'export const c = 2;\n' });
+    const r = await t.post(next);
     expect(r.status).toBe(200);
-    expect(r.body.target).toBe(path.resolve(dir));
-    expect(r.broadcasts).toContain('graph:update');
+    expect(r.body.target).toBe(path.resolve(next));
+    expect(t.broadcasts).toContain('graph:update');
+    expect(t.session.getTargetDir()).toBe(path.resolve(next));
+    expect(t.session.getGraphData().rootDir).toBe(path.basename(next));
+    expect((await t.integrity()).buildId).toBe(t.session.getGraphData().buildId);
   });
 
   it('[SPEC] empty graph reason names the supported extensions', () => {
+    const failed = verifyGraphIntegrity(makeGraph([]));
     expect(describeRejectedTarget(failed)).toMatch(/No supported source files.*\.ts.*\.py/);
   });
 });

@@ -170,8 +170,9 @@ Data flow:
 | `GET /api/agent/events` | AI agent activity events |
 | `GET /api/agent/sessions` | Active agent sessions |
 | `POST /api/target` | Change target directory (422 with a reason, target unchanged, if the directory yields no valid graph — e.g. no supported source files) |
+| `GET /api/integrity` | Integrity check of the latest build of the current target |
 
-WebSocket at `ws://localhost:3001/ws` pushes `graph:update`, `file:change`, and `agent:live` events.
+WebSocket at `ws://localhost:3001/ws` pushes `graph:update`, `file:change`, `agent:live`, and `build:integrity` events. When a rebuild after a file change fails the integrity check, the previous graph stays on screen and the toolbar shows `Build failed HH:MM` (hover for the reason).
 
 ## Development
 

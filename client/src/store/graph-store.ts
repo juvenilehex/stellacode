@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { GraphData, GraphNode, GraphEdge } from '../types/graph';
+import type { BuildIntegrity } from '../types/ws';
 
 declare global {
   interface Window {
@@ -34,6 +35,14 @@ interface GraphState {
   entryActive: boolean;
   /** Timeline replay: only show nodes in this set. null = show all (live mode). */
   timelineVisibleIds: Set<string> | null;
+  /** buildEpoch of the server process last heard from (graph or build status) */
+  serverEpoch: string | null;
+  /** Epochs of server processes that have since been replaced — their late copies are dropped */
+  retiredEpochs: Set<string>;
+  /** Latest applied build status of the server's target */
+  buildStatus: BuildIntegrity | null;
+  /** Set while the latest build failed its integrity check (the graph on screen is the previous one) */
+  buildFailure: { at: number; errors: string[] } | null;
 
   setData: (data: GraphData) => void;
   setLoading: (loading: boolean) => void;
@@ -51,9 +60,28 @@ interface GraphState {
   getConnectedEdges: (nodeId: string) => GraphEdge[];
   tickEntry: (delta: number) => void;
   setTimelineVisibleIds: (ids: Set<string> | null) => void;
+  /** Apply a build status (WS build:integrity or GET /api/integrity) if it is the newest */
+  setBuildStatus: (status: BuildIntegrity) => void;
 }
 
-export const useGraphStore = create<GraphState>((set, get) => ({
+export const useGraphStore = create<GraphState>((set, get) => {
+  /**
+   * Fencing by server process: the first copy from a new buildEpoch retires the previous
+   * one. Epochs are random per process, so they are never compared by size — only
+   * "seen replaced" is known, which is exactly what a late copy needs.
+   */
+  function admitEpoch(epoch: string): boolean {
+    const { serverEpoch, retiredEpochs } = get();
+    if (retiredEpochs.has(epoch)) return false;
+    if (serverEpoch !== epoch) {
+      const retired = new Set(retiredEpochs);
+      if (serverEpoch !== null) retired.add(serverEpoch);
+      set({ serverEpoch: epoch, retiredEpochs: retired });
+    }
+    return true;
+  }
+
+  return {
   data: null,
   nodeMap: new Map(),
   adjacencyMap: new Map(),
@@ -69,15 +97,21 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   entryProgress: 0,
   entryActive: false,
   timelineVisibleIds: null,
+  serverEpoch: null,
+  retiredEpochs: new Set<string>(),
+  buildStatus: null,
+  buildFailure: null,
 
   setData: (data) => {
     // A server build can arrive twice (WebSocket graph:update and GET /api/graph race on
     // separate connections), and an older build can land after a newer one. The server
     // stamps every published graph with a growing buildId per process (buildEpoch), so a
     // copy that is not newer than what is on screen only settles loading/error and keeps
-    // the entry animation running. A new epoch means the server restarted: always newer.
+    // the entry animation running. A new epoch means the server restarted: newer, and the
+    // process it replaced is retired — a late copy from it (an open GET answered before it
+    // stopped) is dropped instead of covering the new graph.
     const current = get().data;
-    if (current && current.buildEpoch === data.buildEpoch && data.buildId <= current.buildId) {
+    if (!admitEpoch(data.buildEpoch) || (current && current.buildEpoch === data.buildEpoch && data.buildId <= current.buildId)) {
       set({ loading: false, error: null });
       return;
     }
@@ -197,7 +231,21 @@ export const useGraphStore = create<GraphState>((set, get) => ({
   },
 
   setTimelineVisibleIds: (ids) => set({ timelineVisibleIds: ids }),
-}));
+
+  setBuildStatus: (status) => {
+    // Statuses come from the WS push and from GET /api/integrity (initial load and every
+    // reconnect) with no ordering between them; the build id keeps the newest. Relayout
+    // takes a graph build id but is not a build, so only a status changes buildFailure.
+    if (!admitEpoch(status.buildEpoch)) return;
+    const current = get().buildStatus;
+    if (current && current.buildEpoch === status.buildEpoch && status.buildId <= current.buildId) return;
+    set({
+      buildStatus: status,
+      buildFailure: status.valid ? null : { at: status.timestamp, errors: status.errors },
+    });
+  },
+  };
+});
 
 // Expose store to window for testing (dev only)
 if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {

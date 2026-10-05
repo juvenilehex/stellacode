@@ -104,6 +104,9 @@ export interface IntegrityResult {
   edgeCount: number;
   errors: string[];
   timestamp: number;
+  /** The checked build's (buildEpoch, buildId) — orders build statuses without a clock */
+  buildEpoch: string;
+  buildId: number;
 }
 
 export function verifyGraphIntegrity(data: GraphData): IntegrityResult {
@@ -133,6 +136,8 @@ export function verifyGraphIntegrity(data: GraphData): IntegrityResult {
     edgeCount: data.edges.length,
     errors: cappedErrors,
     timestamp: Date.now(),
+    buildEpoch: data.buildEpoch,
+    buildId: data.buildId,
   };
 }
 
@@ -145,21 +150,21 @@ export function describeRejectedTarget(integrity: IntegrityResult): string {
   return `Graph integrity check failed: ${integrity.errors[0]}`;
 }
 
-export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => IntegrityResult | null): Router {
+export function createQualityRoutes(ctx: ServerContext): Router {
   const router = Router();
 
   // L5: Quality judgment
   router.get('/quality', (_req, res) => {
-    res.json(judgeGraphQuality(ctx.getGraphData(), ctx.getParseSuccessCount(), ctx.getParseFailureCount()));
+    res.json(judgeGraphQuality(ctx.session.getGraphData(), ctx.session.getParseSuccessCount(), ctx.session.getParseFailureCount()));
   });
 
   // Agent endpoints
   router.get('/agent/events', (_req, res) => {
-    res.json(ctx.agentTracker.getEvents());
+    res.json(ctx.session.agentTracker.getEvents());
   });
 
   router.get('/agent/sessions', (_req, res) => {
-    res.json(ctx.agentTracker.getSessions());
+    res.json(ctx.session.agentTracker.getSessions());
   });
 
   // L5: Kill switch API
@@ -190,7 +195,7 @@ export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => Inte
 
   // Target API
   router.get('/target', (_req, res) => {
-    res.json({ target: ctx.getTargetDir() });
+    res.json({ target: ctx.session.getTargetDir() });
   });
 
   router.post('/target', (req, res) => {
@@ -219,28 +224,25 @@ export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => Inte
       return res.status(400).json({ error: 'Directory not found' });
     }
 
-    const integrity = ctx.switchTarget(resolved);
+    const integrity = ctx.session.switchTarget(resolved);
     if (!integrity.valid) {
       // 422: the path is a readable directory, but it yields no usable graph. Nothing
       // was switched — the previous project stays on screen and on the server.
       return res.status(422).json({ error: describeRejectedTarget(integrity), errors: integrity.errors });
     }
 
-    ctx.broadcaster.broadcast('graph:update', ctx.getGraphData());
+    ctx.broadcaster.broadcast('graph:update', ctx.session.getGraphData());
 
-    const report = judgeGraphQuality(ctx.getGraphData(), ctx.getParseSuccessCount(), ctx.getParseFailureCount());
+    const report = judgeGraphQuality(ctx.session.getGraphData(), ctx.session.getParseSuccessCount(), ctx.session.getParseFailureCount());
     broadcastQualityReport(ctx.broadcaster, report);
 
-    res.json({ target: resolved, stats: ctx.getGraphData().stats });
+    res.json({ target: resolved, stats: ctx.session.getGraphData().stats });
   });
 
   // L3: Graph integrity endpoint
   router.get('/integrity', (_req, res) => {
-    const result = getIntegrity();
-    if (!result) {
-      return res.json({ valid: true, nodeCount: 0, edgeCount: 0, errors: [], timestamp: 0, message: 'No builds yet' });
-    }
-    res.json(result);
+    // The session builds its target on construction, so a recorded build always exists.
+    res.json(ctx.session.getLastIntegrity());
   });
 
   // Usage feedback API (L2)
@@ -269,7 +271,7 @@ export function createQualityRoutes(ctx: ServerContext, getIntegrity: () => Inte
       ? 0.1 + (cohesionValue / 50) * 0.9
       : 1.0 + ((cohesionValue - 50) / 50) * 2.0;
 
-    const graphData = ctx.getGraphData();
+    const graphData = ctx.session.getGraphData();
     computeLayout(graphData.nodes, graphData.edges, { dirCohesion: multiplier });
     graphData.timestamp = Date.now();
     graphData.buildId = nextBuildId();

@@ -2,8 +2,10 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import { UsageTracker } from './usage-tracker.js';
 
-/** All message types the server can broadcast */
-export type WsMessageType = 'connected' | 'graph:update' | 'file:change' | 'agent:live' | 'quality:alert';
+import type { WsMessageType } from './domain.js';
+
+/** All message types the server can broadcast — defined once in domain.ts */
+export type { WsMessageType };
 
 /** Maximum simultaneous WebSocket connections */
 const MAX_CONNECTIONS = 20;

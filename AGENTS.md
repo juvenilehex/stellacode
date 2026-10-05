@@ -47,6 +47,7 @@ PJ12_stellacode/
 ├── server/                    # 백엔드 (Express + WebSocket)
 │   ├── src/
 │   │   ├── index.ts           # 서버 메인 (Express + WS + API 라우트)
+│   │   ├── target-session.ts  # 관측 대상 owner (빌드·재빌드·대상 전환·감시자). index.ts 는 기동·방송만
 │   │   ├── config.ts          # 설정
 │   │   ├── metrics.ts         # 프로젝트 메트릭 계산
 │   │   ├── ws.ts              # WebSocket 브로드캐스터
@@ -92,8 +93,9 @@ npm run lint             # 타입 체크 (server + client)
 | `GET /api/agent/events` | AI 에이전트 활동 이벤트 |
 | `GET /api/agent/sessions` | 활성 에이전트 세션 |
 | `POST /api/target` | 대상 디렉토리 변경. 그 디렉터리 그래프가 무결성 검사에 실패(지원 확장자 파일 0 등)하면 422 + 사유, 대상은 그대로 |
+| `GET /api/integrity` | 현 대상 최신 빌드의 무결성 결과(`valid`·`errors`·`buildEpoch`·`buildId`). 거절된 전환 후보는 기록하지 않는다 |
 
-WebSocket: `ws://localhost:3001/ws` -- `graph:update`, `file:change`, `agent:live` 이벤트. 그래프(GET·WS 공통)는 `buildEpoch`(서버 프로세스)·`buildId`(프로세스 안에서 증가)를 달고, 클라는 같은 epoch 에서 id 가 크지 않은 사본을 무시한다
+WebSocket: `ws://localhost:3001/ws` -- `graph:update`, `file:change`, `agent:live`, `build:integrity` 이벤트(종류 정본 `server/src/domain.ts` WsMessageType). `build:integrity` 는 대상 빌드마다(옛 그래프를 유지한 무결성 실패 포함) 나가고, 클라는 최신 빌드가 실패면 툴바에 `Build failed HH:MM`(호버에 사유)을 띄운다. 연결·재연결마다 `/api/graph`·`/api/integrity` 를 다시 읽는다. 그래프(GET·WS 공통)는 `buildEpoch`(서버 프로세스)·`buildId`(프로세스 안에서 증가)를 달고, 클라는 같은 epoch 에서 id 가 크지 않은 사본을 무시하고, 새 epoch 을 받으면 이전 epoch 을 은퇴시켜 재시작 전 프로세스의 늦은 사본도 무시한다
 
 ## 환경 변수
 

@@ -385,6 +385,46 @@ function TargetDirectoryRow() {
   );
 }
 
+// --- Build Failure Marker ---
+
+/**
+ * The latest build of the target failed its integrity check, so the graph on screen is
+ * the previous one (a half-saved file should not blank the view). Small by default; the
+ * reason is in the hover text.
+ */
+function BuildFailureMarker() {
+  const failure = useGraphStore(s => s.buildFailure);
+  const status = useGraphStore(s => s.buildStatus);
+  const data = useGraphStore(s => s.data);
+  if (!failure || !status) return null;
+  const time = new Date(failure.at);
+  const hhmm = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  // With no earlier graph (e.g. the server started on a directory with no sources) the
+  // failed build itself is what is on screen.
+  const onScreen = data && data.buildEpoch === status.buildEpoch && data.buildId === status.buildId
+    ? 'the graph on screen is this failed build'
+    : 'the graph on screen is the last build that passed';
+  const detail = [
+    `Latest build failed at ${time.toLocaleString()} — ${onScreen}.`,
+    ...failure.errors.map(e => `- ${e}`),
+  ].join('\n');
+  return (
+    <span
+      data-testid="build-failure"
+      role="status"
+      className="px-2 py-1 text-[10px] tracking-wider uppercase rounded-sm cursor-help"
+      style={{
+        background: 'rgba(255,142,200,0.06)',
+        border: '0.5px solid rgba(255,142,200,0.25)',
+        color: '#FF8EC8',
+      }}
+      title={detail}
+    >
+      Build failed {hhmm}
+    </span>
+  );
+}
+
 // --- Observe Mode Row ---
 
 function ObserveRow() {
@@ -548,6 +588,8 @@ export function Toolbar() {
 
   return (
     <div className="fixed top-3 right-3 z-50 flex items-center flex-wrap justify-end gap-2 select-none pointer-events-auto" style={{ maxWidth: 'calc(100vw - 260px)' }}>
+      <BuildFailureMarker />
+
       {/* Capture screenshot */}
       <button
         className="px-2.5 py-1 text-[10px] tracking-wider uppercase rounded-sm transition-all duration-150"
