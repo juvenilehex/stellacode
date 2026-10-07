@@ -122,15 +122,17 @@ Full pipeline from core to visual experience.
 
 **Polish**: 3-point cinematic lighting, 4-layer starfield, Nebula clouds, Shooting stars, Observe mode, Capture (PNG export).
 
-### v1.1 -- Current
+### v1.1
 
 Security hardening, bug fixes, self-improvement rounds. Agent detection expanded to 11 agents. Test suite (124 tests). Settings panel with theme system. CI/CD pipeline. npx distribution ready.
+
+Later releases are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ### Future
 
 Core experience is complete. What follows is driven by need.
 
-- **Performance** -- Barnes-Hut O(n log n), Edge bundling, Smart clustering
+- **Performance** -- Edge bundling, Smart clustering
 - **Deep Patterns** -- Circular dependency detection, Dead code detection, Type flow tracing
 - **Platform** -- Electron wrapper, Plugin system
 - **Agent Intelligence** -- Real-time agent detection, Territory colors, Human vs AI regions

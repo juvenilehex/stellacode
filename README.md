@@ -106,7 +106,7 @@ npm run dev
 Press `O` to hide all UI and watch the stars quietly. Just your code, breathing in the dark.
 
 ### Capture
-Press `3` to save a PNG screenshot of your constellation.
+Click the capture button in the toolbar ("Save screenshot (PNG)") to save a PNG of your constellation.
 
 ![StellaCode inspecting a file](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/stellacode-detail.png)
 *Click any star to see its symbols, connections, and place in the constellation.*
@@ -133,7 +133,7 @@ Press `3` to save a PNG screenshot of your constellation.
 ```
 Browser (React + R3F)            Server (Express)
   Three.js 3D scene                Directory scanner
-  Zustand stores                   Code parser (TS/JS/Python)
+  Zustand stores                   Code parser (TS/JS/Python/Go)
   UI panels                        Graph builder + force layout
   WebSocket client                 WebSocket broadcaster
                                    File watcher (chokidar)
@@ -159,6 +159,8 @@ Data flow:
 
 ## API
 
+The main endpoints are below. The complete list is the routers in [`server/src/routes/`](server/src/routes/).
+
 | Endpoint | Description |
 |----------|-------------|
 | `GET /api/graph` | Full graph (nodes, edges, stats) |
@@ -172,7 +174,7 @@ Data flow:
 | `POST /api/target` | Change target directory (422 with a reason, target unchanged, if the directory yields no valid graph — e.g. no supported source files) |
 | `GET /api/integrity` | Integrity check of the latest build of the current target |
 
-WebSocket at `ws://localhost:3001/ws` pushes `graph:update`, `file:change`, `agent:live`, and `build:integrity` events. When a rebuild after a file change fails the integrity check, the previous graph stays on screen and the toolbar shows `Build failed HH:MM` (hover for the reason).
+WebSocket at `ws://localhost:3001/ws` pushes `connected`, `graph:update`, `file:change`, `agent:live`, `quality:alert`, and `build:integrity` events (defined in [`server/src/domain.ts`](server/src/domain.ts) `WsMessageType`). When a rebuild after a file change fails the integrity check, the previous graph stays on screen and the toolbar shows `Build failed HH:MM` (hover for the reason).
 
 ## Development
 
@@ -180,7 +182,7 @@ WebSocket at `ws://localhost:3001/ws` pushes `graph:update`, `file:change`, `age
 npm run dev       # Start server + client
 npm run build     # Production build
 npm run lint      # Type-check both packages
-npm test          # Run server tests
+npm test          # Run server + client tests
 ```
 
 ```bash

@@ -31,7 +31,7 @@ npm run dev
 ```
 
 This starts both the server and client concurrently.
-Open http://localhost:3001 to access the UI.
+Open http://localhost:5173 to access the UI (the Vite dev server proxies `/api` and `/ws` to the API server on port 3001).
 
 To point at a specific project:
 
