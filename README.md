@@ -23,7 +23,7 @@ We talk to AI, and code appears. Files multiply. One day you look around and rea
 
 It can feel a little overwhelming. We thought it might help to just... see it.
 
-Every file becomes a star. Every import draws a constellation line. Hidden couplings -- files that always change together but share no import -- glow as teal threads you never knew existed. And when an AI agent touches your code, it leaves a trail across the sky.
+Every file becomes a star. Every import draws a constellation line. Hidden couplings -- files that always change together but share no import -- glow as teal threads you never knew existed. And when a Claude Code session touches your code, it leaves a trail across the sky.
 
 **Understand your project at a glance, and maybe feel something while you do.**
 
@@ -63,7 +63,7 @@ npm run dev
 | **Star** | A file. Size = complexity (symbol count). Color = language. |
 | **Constellation Line** | An import relationship. The declared wiring of your code. |
 | **Co-change Thread** | Files that change together in git, with no import between them. Hidden coupling. |
-| **Trail** | The path an AI agent left across your codebase. |
+| **Trail** | The path a live Claude Code session left across your codebase (read from its session log). Plain file saves are not trails -- the file watcher can't tell who saved. |
 | **Pulse** | A file changing right now. |
 | **Diamond** | A directory. The structure that holds stars together. |
 
@@ -85,7 +85,7 @@ npm run dev
 
 ### AI Agent Tracking
 - Detects commits from Claude Code, Copilot, Cursor, Aider, Codeium, Tabnine, Windsurf, Devin, Amazon Q, Gemini, and Bolt
-- Agent trails show which areas each AI has touched
+- Live trails for Claude Code sessions (other agents are recognized from their commits)
 - See the boundary between human and machine work
 
 ### Visual Experience
@@ -169,7 +169,7 @@ The main endpoints are below. The complete list is the routers in [`server/src/r
 | `GET /api/git/stats` | Git analysis (commits, branches, heatmap, co-changes) |
 | `GET /api/git/log?limit=50` | Parsed git log |
 | `GET /api/git/co-changes` | Temporal coupling analysis |
-| `GET /api/agent/events` | AI agent activity events |
+| `GET /api/agent/events` | File-watch events (`agent: "unknown"` -- source can't be attributed) and recent agent commits |
 | `GET /api/agent/sessions` | Active agent sessions |
 | `POST /api/target` | Change target directory (422 with a reason, target unchanged, if the directory yields no valid graph — e.g. no supported source files) |
 | `GET /api/integrity` | Integrity check of the latest build of the current target |

@@ -115,7 +115,7 @@ STELLA_CORS_ORIGINS=     # 추가 CORS 오리진 (쉼표 구분)
 
 - **3D 별자리 시각화**: force-directed graph + golden ratio spiral layout
 - **Git 인텔리전스**: co-change 탐지, conventional commit 파싱, hot files, 활동 히트맵
-- **AI 에이전트 추적**: Claude Code, Copilot, Cursor, Aider 등 11개 에이전트 감지 (목록 정본 `server/src/config.ts` `agentPatterns`)
+- **AI 에이전트 추적**: 커밋 기준 11개 에이전트 감지 (목록 정본 `server/src/config.ts` `agentPatterns`). 실시간 궤적·발광·Agent Activity 는 Claude Code 세션 로그(live-watcher)만 — 파일 감시 이벤트는 바꾼 주체를 알 수 없어 '출처 미상'으로 따로 센다(R624)
 - **타임 트래블**: 커밋별 리플레이, 타임라인 슬라이더
 - **관측 모드**: `O` 키로 UI 숨기고 별자리만 감상
 

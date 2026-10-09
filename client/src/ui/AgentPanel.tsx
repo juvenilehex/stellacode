@@ -4,6 +4,7 @@ import { useThemeColors } from '../hooks/useThemeColors';
 
 export function AgentPanel() {
   const events = useAgentStore(s => s.events);
+  const unattributed = useAgentStore(s => s.unattributed);
   const panelOpen = useAgentStore(s => s.panelOpen);
   const togglePanel = useAgentStore(s => s.togglePanel);
   const C = useThemeColors();
@@ -34,9 +35,16 @@ export function AgentPanel() {
       {panelOpen && (
         <div className="absolute bottom-full mb-2 right-0 w-80 max-h-64 overflow-y-auto rounded-lg text-xs"
           style={{ background: C.panelBg, border: `1px solid ${C.panelBorder}` }}>
+          {unattributed.length > 0 && (
+            <div className="px-3 py-1.5" style={{ color: C.textSecondary, borderBottom: `1px solid ${C.panelBorder}` }}
+              title="File watcher events carry no process info — these may be your own saves or an agent's. Not counted as agent activity.">
+              {unattributed.length} file change{unattributed.length === 1 ? '' : 's'}, source unknown
+            </div>
+          )}
           {events.length === 0 ? (
             <div className="px-3 py-4 text-center" style={{ color: C.textSecondary }}>
               No agent activity detected
+              <div style={{ fontSize: '10px', marginTop: 4 }}>Live tracking reads Claude Code sessions</div>
             </div>
           ) : (
             <div className="divide-y" style={{ borderColor: C.panelBorder }}>

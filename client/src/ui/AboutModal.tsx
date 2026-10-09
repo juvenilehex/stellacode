@@ -10,7 +10,7 @@ const METAPHORS = [
   { term: 'Star', meaning: 'File', color: COLORS.typescript },
   { term: 'Constellation Line', meaning: 'Import dependency', color: COLORS.importEdge },
   { term: 'Co-change', meaning: 'Temporal coupling (git)', color: COLORS.coChangeEdge },
-  { term: 'Trail', meaning: 'AI agent trace', color: COLORS.agentClaude },
+  { term: 'Trail', meaning: 'Live Claude Code session trace', color: COLORS.agentClaude },
   { term: 'Diamond', meaning: 'Directory', color: COLORS.directory },
   { term: 'Deep Space', meaning: 'Background', color: COLORS.bg },
 ];
