@@ -111,8 +111,11 @@ export class AgentTracker {
 
     // Use record separator (0x1e) as delimiter — safe against any field content
     const SEP = String.fromCharCode(0x1e);
+    // core.quotepath=false: by default git octal-quotes non-ASCII paths ("í..."), which
+    // never matches the scanner's paths or `rev-parse --show-prefix` (raw UTF-8) — a Korean-named
+    // file or folder lost its co-change lines and commit meta, and lists showed the escapes.
     const raw = git(
-      ['log', `-n`, `${limit}`, `--format=COMMIT:%H${SEP}%h${SEP}%an${SEP}%ae${SEP}%at${SEP}%s`, '--name-status'],
+      ['-c', 'core.quotepath=false', 'log', `-n`, `${limit}`, `--format=COMMIT:%H${SEP}%h${SEP}%an${SEP}%ae${SEP}%at${SEP}%s`, '--name-status'],
       this.rootDir,
     );
     if (!raw) return [];

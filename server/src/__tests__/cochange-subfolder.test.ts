@@ -31,9 +31,10 @@ beforeAll(() => {
   git(['config', 'user.name', 't']);
   fs.mkdirSync(path.join(repo, 'sub'));
   fs.mkdirSync(path.join(repo, 'other'));
+  fs.mkdirSync(path.join(repo, '한글 폴더'));
   // Three commits that touch sub/a.ts + sub/b.ts + other/x.ts together
   for (let i = 0; i < 3; i++) {
-    for (const f of ['sub/a.ts', 'sub/b.ts', 'other/x.ts']) {
+    for (const f of ['sub/a.ts', 'sub/b.ts', 'other/x.ts', '한글 폴더/가.ts', '한글 폴더/나.ts']) {
       fs.writeFileSync(path.join(repo, f), `export const v = ${i};\n`);
     }
     git(['add', '-A']);
@@ -63,7 +64,7 @@ describe('co-change edges when a subfolder of a git repo is opened', () => {
     const commits = tracker.getGitLog(50);
     const coChanges = tracker.getCoChanges(commits);
     // The git scan itself sees all three pairs, spelled repo-root-relative
-    expect(coChanges.map(c => [c.fileA, c.fileB].sort().join('|')).sort()).toEqual([
+    expect(coChanges.map(c => [c.fileA, c.fileB].sort().join('|')).filter(k => !k.includes('한글')).sort()).toEqual([
       'other/x.ts|sub/a.ts', 'other/x.ts|sub/b.ts', 'sub/a.ts|sub/b.ts',
     ]);
 
@@ -90,5 +91,19 @@ describe('co-change edges when a subfolder of a git repo is opened', () => {
       { coChanges: tracker.getCoChanges(commits), gitPathPrefix: tracker.getRepoPrefix() },
     );
     expect(graph.edges.filter(e => e.type === 'co-change')).toHaveLength(3);
+  });
+
+  it('[SPEC] a subfolder with a non-ASCII name and spaces draws its line (git log must not octal-quote paths)', async () => {
+    const session = new TargetSession(path.join(repo, '한글 폴더'), {
+      onFileChange: () => {}, onLiveEvent: () => {}, onBuildRecorded: () => {},
+    });
+    try {
+      const data = session.getGraphData();
+      const edges = data.edges.filter(e => e.type === 'co-change');
+      expect(edges.map(e => [e.source, e.target].sort().join('|'))).toEqual(['file:가.ts|file:나.ts']);
+      expect(data.nodes.find(n => n.id === 'file:가.ts')?.meta?.commitCount).toBe(3);
+    } finally {
+      await session.close();
+    }
   });
 });
