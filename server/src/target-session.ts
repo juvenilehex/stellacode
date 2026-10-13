@@ -34,14 +34,16 @@ function buildCandidate(dir: string, tracker: AgentTracker): CandidateBuild {
   let coChanges;
   let fileGitMeta;
   let fileAgentMeta;
+  let gitPathPrefix;
   if (tracker.isGit) {
+    gitPathPrefix = tracker.getRepoPrefix();
     const commits = tracker.getGitLog(CONFIG.graphCoChangeLimit);
     coChanges = tracker.getCoChanges(commits);
     fileGitMeta = tracker.getFileGitMeta(commits);
     fileAgentMeta = tracker.getFileAgentMeta(commits);
   }
 
-  const candidateGraph = buildGraph(parseResult.files, dir, { coChanges, fileGitMeta, fileAgentMeta });
+  const candidateGraph = buildGraph(parseResult.files, dir, { coChanges, fileGitMeta, fileAgentMeta, gitPathPrefix });
   const buildDurationMs = Date.now() - start;
 
   // L3: Verify integrity

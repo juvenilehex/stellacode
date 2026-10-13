@@ -11,6 +11,22 @@ export interface BuildGraphOptions {
   fileGitMeta?: Map<string, { lastModified: number; firstCommit: number; commitCount: number }>;
   fileAgentMeta?: Map<string, { primaryAgent: string | null; agentRatio: number; lastAgent: string | null }>;
   layout?: LayoutOptions;
+  /**
+   * The opened folder's path inside its git repo ('' or undefined at the root, 'server/' for a
+   * subfolder — `git rev-parse --show-prefix`). coChanges / fileGitMeta / fileAgentMeta are keyed
+   * by repo-root-relative git paths; node ids are relative to the opened folder.
+   */
+  gitPathPrefix?: string;
+}
+
+/**
+ * The one place a git path becomes a graph path. Returns null for a path outside the opened
+ * folder — such a file has no node in this graph, so the caller drops it (it is not matched
+ * by basename or any other guess).
+ */
+export function gitPathToTargetPath(gitPath: string, prefix: string | undefined): string | null {
+  if (!prefix) return gitPath;
+  return gitPath.startsWith(prefix) ? gitPath.slice(prefix.length) : null;
 }
 
 // Every graph this process publishes carries (buildEpoch, buildId). The same build reaches
@@ -67,6 +83,8 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
   for (const file of files) {
     const parts = file.relativePath.split('/');
     const parentDir = parts.length > 1 ? parts.slice(0, -1).join('/') : undefined;
+    // Inverse of gitPathToTargetPath: the git log keys this file under the repo-root path
+    const gitKey = (options?.gitPathPrefix ?? '') + file.relativePath;
     const node: GraphNode = {
       id: `file:${file.relativePath}`,
       label: parts[parts.length - 1],
@@ -82,8 +100,8 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
       meta: {
         symbols: file.symbols,
         imports: file.imports,
-        ...(options?.fileGitMeta?.get(file.relativePath) ?? {}),
-        ...(options?.fileAgentMeta?.get(file.relativePath) ?? {}),
+        ...(options?.fileGitMeta?.get(gitKey) ?? {}),
+        ...(options?.fileAgentMeta?.get(gitKey) ?? {}),
       },
     };
     nodes.push(node);
@@ -133,19 +151,23 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
   // Add co-change edges from git history (temporal coupling)
   if (options?.coChanges) {
     for (const cc of options.coChanges) {
-      const srcId = `file:${cc.fileA}`;
-      const tgtId = `file:${cc.fileB}`;
-      if (fileMap.has(cc.fileA) && fileMap.has(cc.fileB)) {
+      const fileA = gitPathToTargetPath(cc.fileA, options.gitPathPrefix);
+      const fileB = gitPathToTargetPath(cc.fileB, options.gitPathPrefix);
+      // A pair with either file outside the opened folder has no edge to draw here
+      if (fileA === null || fileB === null) continue;
+      const srcId = `file:${fileA}`;
+      const tgtId = `file:${fileB}`;
+      if (fileMap.has(fileA) && fileMap.has(fileB)) {
         edges.push({
-          id: `cochange:${cc.fileA}<>${cc.fileB}`,
+          id: `cochange:${fileA}<>${fileB}`,
           source: srcId,
           target: tgtId,
           type: 'co-change',
           strength: Math.min(cc.coupling, 0.8),
           label: `${cc.frequency} co-changes`,
         });
-        const srcNode = fileMap.get(cc.fileA);
-        const tgtNode = fileMap.get(cc.fileB);
+        const srcNode = fileMap.get(fileA);
+        const tgtNode = fileMap.get(fileB);
         if (srcNode) srcNode.degree++;
         if (tgtNode) tgtNode.degree++;
       }

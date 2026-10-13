@@ -92,6 +92,17 @@ export class AgentTracker {
     this.eventId = 0;
   }
 
+  /**
+   * Where the opened folder sits inside its git repo, as git spells it ('' at the repo root,
+   * 'server/' for a subfolder). `git log --name-status` always prints repo-root-relative paths
+   * even when run from a subfolder, while graph node ids are relative to the opened folder —
+   * buildGraph needs this prefix to join the two.
+   */
+  getRepoPrefix(): string {
+    if (!this.isGit) return '';
+    return git(['rev-parse', '--show-prefix'], this.rootDir);
+  }
+
   // ── Git Log Analysis ──
 
   /** Parse full git log into structured commits with file status */
