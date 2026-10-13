@@ -3,6 +3,30 @@ import { COLORS, getCommitTypeColor, getCommitTypeLabel, getAgentColor } from '.
 import { useThemeColors } from '../hooks/useThemeColors';
 import { useGraphStore } from '../store/graph-store';
 import type { GitStats, GitCommit } from '../types/agent';
+import type { GraphEdge } from '../types/graph';
+
+/**
+ * 커플링 수의 단일 정의 (R639). 배지는 화면에 그려진 co-change 선을 센다.
+ * /api/git/stats 의 coChanges 는 더 긴 이력(500커밋)·전 파일 기준이라 선보다 많다 —
+ * 그 수를 배지에 쓰면 "50개"라 해 놓고 선은 34개만 보인다(R623 재현).
+ * 목록 수는 listed 로 따로 돌려주고, 둘이 다르면 툴팁이 그 차이를 말한다.
+ */
+export function couplingCounts(
+  coChanges: readonly { fileA: string; fileB: string }[] | undefined,
+  edges: readonly Pick<GraphEdge, 'type'>[] | undefined,
+): { drawn: number; listed: number } {
+  return {
+    drawn: (edges ?? []).filter(e => e.type === 'co-change').length,
+    listed: coChanges?.length ?? 0,
+  };
+}
+
+export function couplingBadgeTitle({ drawn, listed }: { drawn: number; listed: number }): string {
+  const head = `${drawn} co-change link${drawn === 1 ? '' : 's'} in the graph (lines; hidden while the Co-change filter is off) — files that change together in git history`;
+  return listed !== drawn
+    ? `${head}. The Co-change tab ranks ${listed} pairs found by a separate scan of git history, so the counts differ (top 15 shown)`
+    : head;
+}
 
 type GitTab = 'timeline' | 'types' | 'hot' | 'coupling';
 
@@ -13,6 +37,7 @@ export function GitPanel() {
   const [tab, setTab] = useState<GitTab>('timeline');
   const userPickedTabRef = useRef(false);
   const graphVersion = useGraphStore(s => s.graphVersion);
+  const graphEdges = useGraphStore(s => s.data?.edges);
 
   useEffect(() => {
     // graphVersion은 그래프 업데이트마다 bump → 이 effect가 반복 재발화한다.
@@ -43,7 +68,8 @@ export function GitPanel() {
     setTab(t);
   }
 
-  const couplingCount = stats.coChanges?.length ?? 0;
+  const coupling = couplingCounts(stats.coChanges, graphEdges);
+  const couplingCount = coupling.drawn;
 
   return (
     <div className="pointer-events-auto">
@@ -80,7 +106,7 @@ export function GitPanel() {
           <span
             className="ml-1 px-1.5 rounded text-[9px] font-mono"
             style={{ background: `${COLORS.coChangeEdge}22`, color: COLORS.coChangeEdge }}
-            title={`${couplingCount} hidden coupling${couplingCount === 1 ? '' : 's'} — files that change together without imports`}
+            title={couplingBadgeTitle(coupling)}
           >
             &#x22C8; {couplingCount}
           </span>
