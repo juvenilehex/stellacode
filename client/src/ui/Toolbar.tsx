@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useSettingsStore, type CustomColors, type EdgeStyleKey, type NodeStyleKey } from '../store/settings-store';
 import { useGraphStore } from '../store/graph-store';
 import { useTimelineStore } from '../store/timeline-store';
-import { COLORS } from '../utils/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 import { THEMES, type ThemeId } from '../utils/themes';
 
 
@@ -19,6 +19,7 @@ const PRESET_COLORS = [
 function MiniColorPicker({ value, onChange, children }: {
   value: string; onChange: (c: string) => void; children?: ReactNode;
 }) {
+  const C = useThemeColors();
   const [open, setOpen] = useState(false);
   const [hex, setHex] = useState(value);
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -80,8 +81,8 @@ function MiniColorPicker({ value, onChange, children }: {
           style={{
             left: pos.x,
             top: pos.y,
-            background: 'rgba(14, 14, 16, 0.96)',
-            border: '1px solid rgba(255,255,255,0.07)',
+            background: C.panelBg,
+            border: `1px solid ${C.panelBorder}`,
             width: 180,
             /* solid panel — no blur over 3D */
           }}
@@ -106,7 +107,7 @@ function MiniColorPicker({ value, onChange, children }: {
             style={{
               background: 'rgba(180,180,200,0.08)',
               border: '1px solid rgba(180,180,200,0.15)',
-              color: COLORS.textPrimary,
+              color: C.textPrimary,
             }}
             value={hex}
             onChange={(e) => {
@@ -134,10 +135,11 @@ function Slider({ value, onChange, min, max, step, label, suffix }: {
   value: number; onChange: (v: number) => void;
   min: number; max: number; step?: number; label: string; suffix?: string;
 }) {
+  const C = useThemeColors();
   const display = value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)}k` : `${value}`;
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] w-20 shrink-0" style={{ color: COLORS.textSecondary }}>{label}</span>
+      <span className="text-[10px] w-20 shrink-0" style={{ color: C.textSecondary }}>{label}</span>
       <input
         type="range"
         min={min}
@@ -148,7 +150,7 @@ function Slider({ value, onChange, min, max, step, label, suffix }: {
         className="flex-1 h-1 accent-neutral-400 cursor-pointer"
         style={{ accentColor: 'rgba(180,180,200,0.6)' }}
       />
-      <span className="text-[10px] w-8 text-right tabular-nums" style={{ color: COLORS.textSecondary }}>
+      <span className="text-[10px] w-8 text-right tabular-nums" style={{ color: C.textSecondary }}>
         {display}{suffix}
       </span>
     </div>
@@ -158,6 +160,7 @@ function Slider({ value, onChange, min, max, step, label, suffix }: {
 // --- Dropdown wrapper ---
 
 function DropdownButton({ label, children }: { label: string; children: React.ReactNode }) {
+  const C = useThemeColors();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -180,7 +183,7 @@ function DropdownButton({ label, children }: { label: string; children: React.Re
         style={{
           background: open ? 'rgba(180,180,200,0.12)' : 'rgba(180,180,200,0.05)',
           border: '0.5px solid rgba(180,180,200,0.10)',
-          color: open ? COLORS.textPrimary : COLORS.textSecondary,
+          color: open ? C.textPrimary : C.textSecondary,
         }}
         onClick={() => setOpen(!open)}
       >
@@ -190,8 +193,8 @@ function DropdownButton({ label, children }: { label: string; children: React.Re
         <div
           className="absolute right-0 top-8 rounded-md overflow-y-auto max-h-[80vh]"
           style={{
-            background: 'rgba(14, 14, 16, 0.96)',
-            border: '1px solid rgba(255,255,255,0.07)',
+            background: C.panelBg,
+            border: `1px solid ${C.panelBorder}`,
             boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
             /* solid panel — no blur over 3D */
             minWidth: 200,
@@ -207,6 +210,7 @@ function DropdownButton({ label, children }: { label: string; children: React.Re
 // --- Panel Toggle Row ---
 
 function ToggleRow({ label, active, onToggle }: { label: string; active: boolean; onToggle: () => void }) {
+  const C = useThemeColors();
   return (
     <button
       className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-[11px] transition-colors hover:bg-white/5"
@@ -219,9 +223,9 @@ function ToggleRow({ label, active, onToggle }: { label: string; active: boolean
           background: active ? 'rgba(180,180,200,0.15)' : 'transparent',
         }}
       >
-        {active && <span style={{ color: COLORS.textPrimary, fontSize: 8, lineHeight: 1 }}>&#10003;</span>}
+        {active && <span style={{ color: C.textPrimary, fontSize: 8, lineHeight: 1 }}>&#10003;</span>}
       </div>
-      <span style={{ color: active ? COLORS.textPrimary : COLORS.textSecondary }}>{label}</span>
+      <span style={{ color: active ? C.textPrimary : C.textSecondary }}>{label}</span>
     </button>
   );
 }
@@ -232,9 +236,10 @@ function PopupSlider({ label, value, onChange, min, max, step = 1, suffix }: {
   label: string; value: number; onChange: (v: number) => void;
   min: number; max: number; step?: number; suffix?: string;
 }) {
+  const C = useThemeColors();
   return (
     <div className="flex items-center gap-1.5">
-      <span className="text-[10px] w-12 shrink-0" style={{ color: COLORS.textSecondary }}>{label}</span>
+      <span className="text-[10px] w-12 shrink-0" style={{ color: C.textSecondary }}>{label}</span>
       <input
         type="range" min={min} max={max} step={step}
         value={value}
@@ -242,7 +247,7 @@ function PopupSlider({ label, value, onChange, min, max, step = 1, suffix }: {
         className="flex-1 h-0.5 cursor-pointer"
         style={{ accentColor: 'rgba(180,180,200,0.5)' }}
       />
-      <span className="text-[10px] w-7 text-right tabular-nums" style={{ color: COLORS.textSecondary }}>
+      <span className="text-[10px] w-7 text-right tabular-nums" style={{ color: C.textSecondary }}>
         {value}{suffix}
       </span>
     </div>
@@ -254,6 +259,7 @@ function PopupSlider({ label, value, onChange, min, max, step = 1, suffix }: {
 function NodeColorRow({ label, colorKey, styleKey }: {
   label: string; colorKey: keyof CustomColors; styleKey: NodeStyleKey;
 }) {
+  const C = useThemeColors();
   const color = useSettingsStore(s => s.colors[colorKey]);
   const setColor = useSettingsStore(s => s.setColor);
   const style = useSettingsStore(s => s.nodeStyles[styleKey]);
@@ -265,7 +271,7 @@ function NodeColorRow({ label, colorKey, styleKey }: {
         <PopupSlider label="Opacity" value={style.opacity} onChange={(v) => setNodeStyle(styleKey, { opacity: v })} min={10} max={100} suffix="%" />
         <PopupSlider label="Size" value={style.size} onChange={(v) => setNodeStyle(styleKey, { size: v })} min={50} max={200} suffix="%" />
       </MiniColorPicker>
-      <span className="text-[10px]" style={{ color: COLORS.textSecondary }}>{label}</span>
+      <span className="text-[10px]" style={{ color: C.textSecondary }}>{label}</span>
     </div>
   );
 }
@@ -275,6 +281,7 @@ function NodeColorRow({ label, colorKey, styleKey }: {
 function EdgeColorRow({ label, colorKey, styleKey }: {
   label: string; colorKey: keyof CustomColors; styleKey: EdgeStyleKey;
 }) {
+  const C = useThemeColors();
   const color = useSettingsStore(s => s.colors[colorKey]);
   const setColor = useSettingsStore(s => s.setColor);
   const style = useSettingsStore(s => s.edgeStyles[styleKey]);
@@ -286,7 +293,7 @@ function EdgeColorRow({ label, colorKey, styleKey }: {
         <PopupSlider label="Weight" value={style.weight} onChange={(v) => setEdgeStyle(styleKey, { weight: v })} min={1} max={5} />
         <PopupSlider label="Opacity" value={style.opacity} onChange={(v) => setEdgeStyle(styleKey, { opacity: v })} min={0} max={100} suffix="%" />
       </MiniColorPicker>
-      <span className="text-[10px]" style={{ color: COLORS.textSecondary }}>{label}</span>
+      <span className="text-[10px]" style={{ color: C.textSecondary }}>{label}</span>
     </div>
   );
 }
@@ -294,6 +301,7 @@ function EdgeColorRow({ label, colorKey, styleKey }: {
 // --- Target Directory Row ---
 
 function TargetDirectoryRow() {
+  const C = useThemeColors();
   const currentPath = useGraphStore(s => s.targetPath);
   const retarget = useGraphStore(s => s.retarget);
   const [editing, setEditing] = useState(false);
@@ -322,13 +330,13 @@ function TargetDirectoryRow() {
   return (
     <div className="px-3 pb-2">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>
+        <span className="text-[10px] uppercase tracking-wider" style={{ color: C.textSecondary }}>
           Target
         </span>
         {!editing && (
           <button
             className="text-[10px] px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors"
-            style={{ color: COLORS.textSecondary }}
+            style={{ color: C.textSecondary }}
             onClick={() => setEditing(true)}
           >
             Change
@@ -342,7 +350,7 @@ function TargetDirectoryRow() {
             style={{
               background: 'rgba(180,180,200,0.06)',
               border: `1px solid ${error ? '#FF8EC8' : 'rgba(180,180,200,0.15)'}`,
-              color: COLORS.textPrimary,
+              color: C.textPrimary,
             }}
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -356,7 +364,7 @@ function TargetDirectoryRow() {
               className="flex-1 text-[10px] py-0.5 rounded transition-colors"
               style={{
                 background: 'rgba(180,180,200,0.08)',
-                color: loading ? COLORS.textSecondary : COLORS.textPrimary,
+                color: loading ? C.textSecondary : C.textPrimary,
               }}
               onClick={handleSubmit}
               disabled={loading}
@@ -365,7 +373,7 @@ function TargetDirectoryRow() {
             </button>
             <button
               className="text-[10px] px-2 py-0.5 rounded hover:bg-white/5 transition-colors"
-              style={{ color: COLORS.textSecondary }}
+              style={{ color: C.textSecondary }}
               onClick={() => { setEditing(false); setError(''); setValue(currentPath); }}
               disabled={loading}
             >
@@ -377,7 +385,7 @@ function TargetDirectoryRow() {
           )}
         </div>
       ) : (
-        <p className="text-[10px] font-mono truncate" style={{ color: COLORS.textSecondary }}>
+        <p className="text-[10px] font-mono truncate" style={{ color: C.textSecondary }}>
           {currentPath || 'Not set'}
         </p>
       )}
@@ -460,6 +468,7 @@ const LAYOUT_PRESETS = [
 ] as const;
 
 function ConfigDropdown() {
+  const C = useThemeColors();
   const theme = useSettingsStore(s => s.theme);
   const setTheme = useSettingsStore(s => s.setTheme);
   const scanMaxFiles = useSettingsStore(s => s.scanMaxFiles);
@@ -487,7 +496,7 @@ function ConfigDropdown() {
       <div className="py-2 px-1" style={{ width: 270 }}>
         {/* Theme */}
         <div className="px-2 mb-2">
-          <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>Theme</span>
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: C.textSecondary }}>Theme</span>
         </div>
         <div className="px-3 pb-2">
           <div className="flex gap-1">
@@ -496,7 +505,7 @@ function ConfigDropdown() {
                 key={id}
                 className="flex-1 text-[9px] py-0.5 rounded-sm transition-colors"
                 style={{
-                  color: theme === id ? COLORS.textPrimary : COLORS.textSecondary,
+                  color: theme === id ? C.textPrimary : C.textSecondary,
                   background: theme === id ? 'rgba(180,180,200,0.12)' : 'transparent',
                 }}
                 onClick={() => setTheme(id)}
@@ -511,7 +520,7 @@ function ConfigDropdown() {
 
         {/* Layout */}
         <div className="px-2 mb-2">
-          <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>Layout</span>
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: C.textSecondary }}>Layout</span>
         </div>
         <div className="px-3 pb-1">
           <div className="flex gap-1 mb-2">
@@ -520,7 +529,7 @@ function ConfigDropdown() {
                 key={p.label}
                 className="flex-1 text-[9px] py-0.5 rounded-sm transition-colors"
                 style={{
-                  color: dirCohesion === p.cohesion ? COLORS.textPrimary : COLORS.textSecondary,
+                  color: dirCohesion === p.cohesion ? C.textPrimary : C.textSecondary,
                   background: dirCohesion === p.cohesion ? 'rgba(180,180,200,0.12)' : 'transparent',
                 }}
                 onClick={() => applyPreset(p.cohesion)}
@@ -536,7 +545,7 @@ function ConfigDropdown() {
 
         {/* Scanning */}
         <div className="px-2 mb-2">
-          <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>Scanning</span>
+          <span className="text-[10px] uppercase tracking-wider" style={{ color: C.textSecondary }}>Scanning</span>
         </div>
         <div className="px-3 space-y-2 pb-1">
           <Slider label="Max Files" value={scanMaxFiles} onChange={setScanMaxFiles} min={1000} max={100000} step={1000} />
@@ -552,7 +561,7 @@ function ConfigDropdown() {
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 text-[10px] transition-colors hover:brightness-125"
-            style={{ color: COLORS.textSecondary }}
+            style={{ color: C.textSecondary }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
               <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.947 2.418-2.157 2.418z"/>
@@ -568,6 +577,7 @@ function ConfigDropdown() {
 // --- Main Toolbar ---
 
 export function Toolbar() {
+  const C = useThemeColors();
   const panels = useSettingsStore(s => s.panels);
   const togglePanel = useSettingsStore(s => s.togglePanel);
   const fontSize = useSettingsStore(s => s.fontSize);
@@ -596,7 +606,7 @@ export function Toolbar() {
         style={{
           background: 'rgba(180,180,200,0.05)',
           border: '0.5px solid rgba(180,180,200,0.10)',
-          color: COLORS.textSecondary,
+          color: C.textSecondary,
         }}
         onClick={() => {
           try {
@@ -670,10 +680,10 @@ export function Toolbar() {
           {/* Colors section */}
           <div className="px-2 mb-2">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] uppercase tracking-wider" style={{ color: COLORS.textSecondary }}>Colors</span>
+              <span className="text-[10px] uppercase tracking-wider" style={{ color: C.textSecondary }}>Colors</span>
               <button
                 className="text-[10px] px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors"
-                style={{ color: COLORS.textSecondary }}
+                style={{ color: C.textSecondary }}
                 onClick={resetColors}
               >
                 Reset
@@ -703,14 +713,14 @@ export function Toolbar() {
           <div className="px-3 space-y-2 pb-1">
             {/* Color mode toggle */}
             <div className="flex items-center gap-2">
-              <span className="text-[10px] w-20 shrink-0" style={{ color: COLORS.textSecondary }}>Color Mode</span>
+              <span className="text-[10px] w-20 shrink-0" style={{ color: C.textSecondary }}>Color Mode</span>
               <div className="flex gap-1 flex-1">
                 {(['language', 'age', 'agent'] as const).map(m => (
                   <button
                     key={m}
                     className="flex-1 text-[9px] py-0.5 rounded-sm transition-colors"
                     style={{
-                      color: colorMode === m ? COLORS.textPrimary : COLORS.textSecondary,
+                      color: colorMode === m ? C.textPrimary : C.textSecondary,
                       background: colorMode === m ? 'rgba(180,180,200,0.12)' : 'transparent',
                     }}
                     onClick={() => setColorMode(m)}

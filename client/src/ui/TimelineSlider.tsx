@@ -1,12 +1,14 @@
 import { useRef, useCallback, useEffect } from 'react';
 import { useTimelineStore } from '../store/timeline-store';
 import { COLORS } from '../utils/colors';
+import { useThemeColors } from '../hooks/useThemeColors';
 
 /**
  * Timeline scrub bar for time-travel replay.
  * Fixed at the bottom of the screen when replay mode is active.
  */
 export function TimelineSlider() {
+  const C = useThemeColors();
   const mode = useTimelineStore(s => s.mode);
   const commits = useTimelineStore(s => s.commits);
   const currentIndex = useTimelineStore(s => s.currentIndex);
@@ -92,7 +94,7 @@ export function TimelineSlider() {
           {/* Play/Pause */}
           <button
             className="w-7 h-7 flex items-center justify-center rounded-sm transition-colors hover:bg-white/10"
-            style={{ color: COLORS.textPrimary }}
+            style={{ color: C.textPrimary }}
             onClick={() => playing ? pause() : play()}
             title={playing ? 'Pause (Space)' : 'Play (Space)'}
           >
@@ -115,7 +117,7 @@ export function TimelineSlider() {
                 key={s}
                 className="px-1.5 py-0.5 text-[9px] rounded-sm transition-colors"
                 style={{
-                  color: speed === s ? COLORS.textPrimary : COLORS.textSecondary,
+                  color: speed === s ? C.textPrimary : C.textSecondary,
                   background: speed === s ? 'rgba(180,180,200,0.12)' : 'transparent',
                 }}
                 onClick={() => setSpeed(s)}
@@ -126,12 +128,12 @@ export function TimelineSlider() {
           </div>
 
           {/* Progress counter */}
-          <span className="text-[10px] tabular-nums" style={{ color: COLORS.textSecondary }}>
+          <span className="text-[10px] tabular-nums" style={{ color: C.textSecondary }}>
             {currentIndex + 1} / {total}
           </span>
 
           {/* Visible files count */}
-          <span className="text-[10px]" style={{ color: COLORS.textSecondary }}>
+          <span className="text-[10px]" style={{ color: C.textSecondary }}>
             {visibleFiles.size} files
           </span>
         </div>
@@ -145,7 +147,7 @@ export function TimelineSlider() {
               </span>
               <span
                 className="text-[10px] truncate"
-                style={{ color: COLORS.textSecondary, maxWidth: 300 }}
+                style={{ color: C.textSecondary, maxWidth: 300 }}
               >
                 {current.message}
               </span>
@@ -164,7 +166,7 @@ export function TimelineSlider() {
           <button
             className="text-[10px] px-2.5 py-1 rounded-sm tracking-wider uppercase transition-colors hover:bg-white/10"
             style={{
-              color: COLORS.textSecondary,
+              color: C.textSecondary,
               border: '0.5px solid rgba(180,180,200,0.15)',
             }}
             onClick={exitReplay}
