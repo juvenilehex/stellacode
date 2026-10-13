@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { CONFIG } from '../config.js';
+import { gitPathToTargetPath } from '../graph/builder.js';
 import type {
   AgentEvent, AgentSession,
   GitCommit, GitBranch, GitCoChange, GitStats, ConventionalType, TimelineCommit,
@@ -167,7 +168,7 @@ export class AgentTracker {
 
   /** Get timeline data for time travel replay (oldest first) */
   getTimeline(limit = CONFIG.git.statsLogLimit): TimelineCommit[] {
-    const commits = this.getGitLog(limit);
+    const commits = this.scopeToOpenedFolder(this.getGitLog(limit));
     return commits
       .map(c => ({
         hash: c.hash,
@@ -181,6 +182,26 @@ export class AgentTracker {
         fileStatuses: c.fileStatuses ?? c.files.map(f => ({ status: 'M' as const, path: f })),
       }))
       .reverse(); // oldest first
+  }
+
+  /**
+   * The Git panel lists (Hot, Co-Change, timeline) speak the graph's language: paths relative
+   * to the opened folder, and nothing outside it. git log prints repo-root paths for the whole
+   * repo even when run from a subfolder, so each file goes through the same seam buildGraph
+   * uses; a file outside the opened folder has no node and is excluded, not kept repo-wide.
+   * At the repo root the prefix is '' and every path passes through unchanged.
+   */
+  scopeToOpenedFolder(commits: GitCommit[]): GitCommit[] {
+    const prefix = this.getRepoPrefix();
+    if (!prefix) return commits;
+    const inFolder = (p: string) => gitPathToTargetPath(p, prefix);
+    return commits.map(c => ({
+      ...c,
+      files: c.files.map(inFolder).filter((p): p is string => p !== null),
+      fileStatuses: c.fileStatuses
+        ?.map(fs => ({ ...fs, path: inFolder(fs.path), oldPath: fs.oldPath === undefined ? undefined : inFolder(fs.oldPath) ?? undefined }))
+        .filter((fs): fs is typeof fs & { path: string } => fs.path !== null),
+    }));
   }
 
   // ── Branch Info ──
@@ -329,7 +350,8 @@ export class AgentTracker {
   getGitStats(): GitStats {
     const commits = this.getGitLog(CONFIG.git.statsLogLimit);
     const branches = this.getBranches();
-    const coChanges = this.getCoChanges(commits);
+    const scoped = this.scopeToOpenedFolder(commits);
+    const coChanges = this.getCoChanges(scoped);
 
     // Commits by type
     const commitsByType = {} as Record<ConventionalType, number>;
@@ -345,7 +367,7 @@ export class AgentTracker {
 
     // Hot files (most changed)
     const fileCounts = new Map<string, number>();
-    for (const c of commits) {
+    for (const c of scoped) {
       for (const f of c.files) {
         fileCounts.set(f, (fileCounts.get(f) ?? 0) + 1);
       }

@@ -107,3 +107,22 @@ describe('co-change edges when a subfolder of a git repo is opened', () => {
     }
   });
 });
+
+describe('Git panel lists when a subfolder of a git repo is opened', () => {
+  it('Hot / Co-Change / timeline name only files inside the opened folder, folder-relative', () => {
+    const tracker = new AgentTracker(path.join(repo, 'sub'));
+    const stats = tracker.getGitStats();
+    expect(stats.coChanges.map(c => [c.fileA, c.fileB].sort().join('|'))).toEqual(['a.ts|b.ts']);
+    expect(stats.hotFiles.map(h => h.path).sort()).toEqual(['a.ts', 'b.ts']);
+    const paths = tracker.getTimeline(50).flatMap(c => c.fileStatuses.map(f => f.path));
+    expect(paths.length).toBeGreaterThan(0);
+    expect([...new Set(paths)].sort()).toEqual(['a.ts', 'b.ts']);
+  });
+
+  it('at the repo root the lists stay repo-wide with repo-root paths', () => {
+    const tracker = new AgentTracker(repo);
+    const hot = tracker.getGitStats().hotFiles.map(h => h.path);
+    expect(hot).toContain('other/x.ts');
+    expect(hot).toContain('sub/a.ts');
+  });
+});

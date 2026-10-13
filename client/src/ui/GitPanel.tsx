@@ -7,7 +7,8 @@ import type { GraphEdge } from '../types/graph';
 
 /**
  * 커플링 수의 단일 정의 (R639). 배지는 화면에 그려진 co-change 선을 센다.
- * /api/git/stats 의 coChanges 는 더 긴 이력(500커밋)·전 파일 기준이라 선보다 많다 —
+ * /api/git/stats 의 coChanges 는 더 긴 이력(500커밋) 기준이라 선보다 많다(연 폴더 밖 파일은 서버가 뺀다 —
+ * tracker.scopeToOpenedFolder) —
  * 그 수를 배지에 쓰면 "50개"라 해 놓고 선은 34개만 보인다(R623 재현).
  * 목록 수는 listed 로 따로 돌려주고, 둘이 다르면 툴팁이 그 차이를 말한다.
  */
