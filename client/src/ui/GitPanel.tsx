@@ -7,26 +7,64 @@ import type { GraphEdge } from '../types/graph';
 
 /**
  * 커플링 수의 단일 정의 (R639). 배지는 화면에 그려진 co-change 선을 센다.
- * /api/git/stats 의 coChanges 는 더 긴 이력(500커밋) 기준이라 선보다 많다(연 폴더 밖 파일은 서버가 뺀다 —
- * tracker.scopeToOpenedFolder) —
- * 그 수를 배지에 쓰면 "50개"라 해 놓고 선은 34개만 보인다(R623 재현).
+ * 선과 /api/git/stats 의 coChanges 는 서버의 같은 계산(연 폴더로 먼저 좁힌 같은 커밋 창 —
+ * tracker.getCoChangeLog, R657)에서 나온다. 목록에만 있는 쌍은 노드가 없는 파일(LICENSE·css·md 처럼
+ * 파서가 별로 만들지 않는 파일, 또는 지워진 파일)이 낀 쌍이다.
  * 목록 수는 listed 로 따로 돌려주고, 둘이 다르면 툴팁이 그 차이를 말한다.
  */
+type EdgeEnds = Pick<GraphEdge, 'type' | 'source' | 'target'>;
+
+const pairKey = (a: string, b: string) => [a, b].sort().join('\0');
+const edgePairKey = (e: EdgeEnds) => pairKey(e.source.replace(/^file:/, ''), e.target.replace(/^file:/, ''));
+
+function importPairs(edges: readonly EdgeEnds[]): Set<string> {
+  return new Set(edges.filter(e => e.type === 'import').map(edgePairKey));
+}
+
 export function couplingCounts(
   coChanges: readonly { fileA: string; fileB: string }[] | undefined,
-  edges: readonly Pick<GraphEdge, 'type'>[] | undefined,
-): { drawn: number; listed: number } {
+  edges: readonly EdgeEnds[] | undefined,
+): { drawn: number; listed: number; alongsideImport: number } {
+  const all = edges ?? [];
+  const imports = importPairs(all);
+  const lines = all.filter(e => e.type === 'co-change');
   return {
-    drawn: (edges ?? []).filter(e => e.type === 'co-change').length,
+    drawn: lines.length,
     listed: coChanges?.length ?? 0,
+    alongsideImport: lines.filter(e => imports.has(edgePairKey(e))).length,
   };
 }
 
-export function couplingBadgeTitle({ drawn, listed }: { drawn: number; listed: number }): string {
+export function couplingBadgeTitle({ drawn, listed, alongsideImport }: { drawn: number; listed: number; alongsideImport: number }): string {
   const head = `${drawn} co-change link${drawn === 1 ? '' : 's'} in the graph (lines; hidden while the Co-change filter is off) — files that change together in git history`;
+  const split = alongsideImport > 0
+    ? `. ${drawn - alongsideImport} share no import (hidden coupling); ${alongsideImport} run alongside an import`
+    : '';
   return listed !== drawn
-    ? `${head}. The Co-change tab ranks ${listed} pairs found by a separate scan of git history, so the counts differ (top 15 shown)`
-    : head;
+    ? `${head}${split}. The Co-change tab also lists ${listed - drawn} pair${listed - drawn === 1 ? '' : 's'} with a file that is not in the graph`
+    : `${head}${split}`;
+}
+
+/**
+ * What the graph says about one listed pair (R657):
+ * hidden = drawn and no import between the two — the coupling nothing in the code shows;
+ * import = drawn, but an import already connects them — expected coupling;
+ * off-graph = no line, because a file of the pair has no star (not a parsed source file, or deleted).
+ */
+export type CoChangeStatus = 'hidden' | 'import' | 'off-graph';
+
+export function coChangeStatuses(
+  coChanges: readonly { fileA: string; fileB: string }[],
+  edges: readonly EdgeEnds[] | undefined,
+): CoChangeStatus[] {
+  const all = edges ?? [];
+  const imports = importPairs(all);
+  const drawn = new Set(all.filter(e => e.type === 'co-change').map(edgePairKey));
+  return coChanges.map(({ fileA, fileB }) => {
+    const k = pairKey(fileA, fileB);
+    if (!drawn.has(k)) return 'off-graph';
+    return imports.has(k) ? 'import' : 'hidden';
+  });
 }
 
 type GitTab = 'timeline' | 'types' | 'hot' | 'coupling';
@@ -138,7 +176,7 @@ export function GitPanel() {
             {tab === 'timeline' && <TimelineTab commits={stats.recentCommits} />}
             {tab === 'types' && <TypesTab stats={stats} />}
             {tab === 'hot' && <HotFilesTab stats={stats} />}
-            {tab === 'coupling' && <CouplingTab stats={stats} />}
+            {tab === 'coupling' && <CouplingTab stats={stats} edges={graphEdges} />}
           </div>
         </div>
       )}
@@ -290,7 +328,7 @@ function HotFilesTab({ stats }: { stats: GitStats }) {
 
 // ── Coupling: files that change together ──
 
-function CouplingTab({ stats }: { stats: GitStats }) {
+function CouplingTab({ stats, edges }: { stats: GitStats; edges: readonly GraphEdge[] | undefined }) {
   const C = useThemeColors();
   if (stats.coChanges.length === 0) {
     return (
@@ -300,30 +338,48 @@ function CouplingTab({ stats }: { stats: GitStats }) {
     );
   }
 
+  const statuses = coChangeStatuses(stats.coChanges, edges);
+  const count = (s: CoChangeStatus) => statuses.filter(x => x === s).length;
+
   return (
     <div className="px-3 py-2 space-y-1">
-      <div className="text-[10px] mb-2" style={{ color: C.textSecondary }}>
-        Files that frequently change together (temporal coupling)
+      <div className="text-[10px] mb-2" style={{ color: C.textSecondary }}
+        title="hidden: a co-change line with no import between the two files. import: an import already connects them. not in graph: a file of the pair is not a star (not a parsed source file, or deleted), so no line is drawn">
+        Files that frequently change together (temporal coupling) — of {stats.coChanges.length}:{' '}
+        <span style={{ color: COLORS.coChangeEdge }}>{count('hidden')} hidden</span>
+        {' · '}{count('import')} also import{' · '}{count('off-graph')} not in graph
       </div>
-      {stats.coChanges.slice(0, 15).map((cc, i) => (
-        <div key={i} className="flex items-center gap-1.5 py-0.5">
-          <span className="font-mono truncate flex-1" style={{ color: C.textPrimary, fontSize: '9px' }}>
-            {cc.fileA.split('/').pop()}
-          </span>
-          <div className="shrink-0 flex items-center gap-1">
-            <div className="w-8 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-              <div className="h-full rounded-full"
-                style={{ width: `${cc.coupling * 100}%`, background: COLORS.coChangeEdge }} />
+      {stats.coChanges.slice(0, 15).map((cc, i) => {
+        const status = statuses[i];
+        const tag = status === 'import' ? 'import' : status === 'off-graph' ? 'no line' : '';
+        const why = status === 'hidden' ? 'line in the graph, no import between them'
+          : status === 'import' ? 'line in the graph, alongside an import'
+          : 'no line: a file of this pair is not in the graph';
+        return (
+          <div key={i} className="flex items-center gap-1.5 py-0.5"
+            style={{ opacity: status === 'off-graph' ? 0.45 : 1 }}
+            title={`${cc.fileA} ↔ ${cc.fileB}\n${cc.frequency} commits together · ${why}`}>
+            <span className="font-mono truncate flex-1" style={{ color: C.textPrimary, fontSize: '9px' }}>
+              {cc.fileA.split('/').pop()}
+            </span>
+            <div className="shrink-0 flex items-center gap-1">
+              <div className="w-8 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                <div className="h-full rounded-full"
+                  style={{ width: `${cc.coupling * 100}%`, background: COLORS.coChangeEdge }} />
+              </div>
+              <span className="font-mono" style={{ color: COLORS.coChangeEdge, fontSize: '9px' }}>
+                {Math.round(cc.coupling * 100)}%
+              </span>
+              <span className="font-mono w-9 text-center" style={{ color: C.textSecondary, fontSize: '8px' }}>
+                {tag}
+              </span>
             </div>
-            <span className="font-mono" style={{ color: COLORS.coChangeEdge, fontSize: '9px' }}>
-              {Math.round(cc.coupling * 100)}%
+            <span className="font-mono truncate flex-1 text-right" style={{ color: C.textPrimary, fontSize: '9px' }}>
+              {cc.fileB.split('/').pop()}
             </span>
           </div>
-          <span className="font-mono truncate flex-1 text-right" style={{ color: C.textPrimary, fontSize: '9px' }}>
-            {cc.fileB.split('/').pop()}
-          </span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

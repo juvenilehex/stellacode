@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The Git panel's Co-change tab marks each pair: hidden (no import between the files), linked by an import too, or not in the graph (a file the parser doesn't draw, such as LICENSE or a stylesheet), with the three counts on top. The coupling badge tooltip gives the same split
+
 ### Fixed
+- Opening a subfolder of a repository now draws its co-change lines; graph and Git panel used repo-root paths for one and folder paths for the other
+- In a subfolder, co-change pairs were ranked across the whole repository before files outside the folder were dropped, so pairs the Co-change tab listed could have no line. The graph, the Git panel and `/api/git/co-changes` now share one analysis of the opened folder's history
+- Files and folders with non-ASCII names (e.g. Korean) get their co-change lines and commit counts; git's octal-quoted paths never matched
+- With a subfolder open, the Git panel's Hot, Co-change and timeline lists show only files inside it, by folder-relative path
+- The coupling badge counts the co-change lines drawn in the graph instead of the longer list
+- The High Contrast theme now reaches the toolbar, Git panel, About dialog and timeline
+- Plain file saves are no longer counted as 'Agent Activity' -- the file watcher can't tell who saved, so they show as changes of unknown source
 - Sidebar and About badges showed `v1.0` / `v1.1`; the version is now derived from `package.json` at build time
 - Reduced motion (`prefers-reduced-motion: reduce`) now also stills the connect-screen starfield, AI agent trail sparkles and nebula clouds
 - Changing the target from the toolbar now replays the entry animation when the WebSocket is down, without restarting it when the broadcast already arrived

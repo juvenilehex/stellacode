@@ -28,8 +28,8 @@ export function createGitRoutes(ctx: ServerContext): Router {
   });
 
   router.get('/git/co-changes', (_req, res) => {
-    const commits = ctx.session.agentTracker.getGitLog(CONFIG.git.coChangeLogLimit);
-    res.json(ctx.session.agentTracker.getCoChanges(commits));
+    const tracker = ctx.session.agentTracker;
+    res.json(tracker.getCoChanges(tracker.getCoChangeLog()));
   });
 
   return router;

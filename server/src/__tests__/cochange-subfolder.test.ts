@@ -61,17 +61,21 @@ describe('co-change edges when a subfolder of a git repo is opened', () => {
 
   it('draws the pair inside the subfolder and drops pairs that leave it', () => {
     const tracker = new AgentTracker(path.join(repo, 'sub'));
-    const commits = tracker.getGitLog(50);
-    const coChanges = tracker.getCoChanges(commits);
-    // The git scan itself sees all three pairs, spelled repo-root-relative
-    expect(coChanges.map(c => [c.fileA, c.fileB].sort().join('|')).filter(k => !k.includes('한글')).sort()).toEqual([
+    // The raw git scan sees all three pairs, spelled repo-root-relative
+    const raw = tracker.getCoChanges(tracker.getGitLog(50));
+    expect(raw.map(c => [c.fileA, c.fileB].sort().join('|')).filter(k => !k.includes('한글')).sort()).toEqual([
       'other/x.ts|sub/a.ts', 'other/x.ts|sub/b.ts', 'sub/a.ts|sub/b.ts',
     ]);
+
+    // The co-change history is scoped to the opened folder before anything is ranked or joined
+    const commits = tracker.getCoChangeLog();
+    const coChanges = tracker.getCoChanges(commits);
+    expect(coChanges.map(c => [c.fileA, c.fileB].sort().join('|'))).toEqual(['a.ts|b.ts']);
 
     const graph = buildGraph([makeFile('a.ts'), makeFile('b.ts')], path.join(repo, 'sub'), {
       coChanges,
       fileGitMeta: tracker.getFileGitMeta(commits),
-      gitPathPrefix: tracker.getRepoPrefix(),
+      fileAgentMeta: tracker.getFileAgentMeta(commits),
     });
     const edges = graph.edges.filter(e => e.type === 'co-change');
     expect(edges).toHaveLength(1);
@@ -80,16 +84,18 @@ describe('co-change edges when a subfolder of a git repo is opened', () => {
     // Per-file git meta is joined the same way (commitCount was missing for every subfolder node)
     const a = graph.nodes.find(n => n.id === 'file:a.ts');
     expect(a?.meta?.commitCount).toBe(3);
+    expect(a?.meta).toHaveProperty('agentRatio', 0);
   });
 
   it('repo root keeps working with an empty prefix', () => {
     const tracker = new AgentTracker(repo);
     expect(tracker.getRepoPrefix()).toBe('');
-    const commits = tracker.getGitLog(50);
+    const commits = tracker.getCoChangeLog();
     const graph = buildGraph(
       [makeFile('sub/a.ts'), makeFile('sub/b.ts'), makeFile('other/x.ts')], repo,
-      { coChanges: tracker.getCoChanges(commits), gitPathPrefix: tracker.getRepoPrefix() },
+      { coChanges: tracker.getCoChanges(commits), fileGitMeta: tracker.getFileGitMeta(commits) },
     );
+    expect(graph.nodes.find(n => n.id === 'file:other/x.ts')?.meta?.commitCount).toBe(3);
     expect(graph.edges.filter(e => e.type === 'co-change')).toHaveLength(3);
   });
 
@@ -124,5 +130,60 @@ describe('Git panel lists when a subfolder of a git repo is opened', () => {
     const hot = tracker.getGitStats().hotFiles.map(h => h.path);
     expect(hot).toContain('other/x.ts');
     expect(hot).toContain('sub/a.ts');
+  });
+});
+
+// R657 finding: the graph ranked co-change pairs repo-wide (top maxCoChangePairs) and only then
+// dropped pairs outside the opened folder, while the Git panel ranked inside the folder. In a
+// subfolder whose pairs are weaker than the rest of the repo, the panel listed pairs whose two
+// files were both nodes and yet no line was drawn (19 of 50 in client/src of this repo).
+describe('one co-change analysis for the graph and the Git panel', () => {
+  let crowded: string;
+  const g = (args: string[]) => execFileSync('git', args, { cwd: crowded, windowsHide: true, stdio: 'pipe' });
+
+  beforeAll(() => {
+    crowded = fs.mkdtempSync(path.join(os.tmpdir(), 'stella-crowd-'));
+    g(['init', '-q']);
+    g(['config', 'user.email', 't@t']);
+    g(['config', 'user.name', 't']);
+    fs.mkdirSync(path.join(crowded, 'sub'));
+    fs.mkdirSync(path.join(crowded, 'other'));
+    // 12 files outside 'sub' always change together: 66 pairs at 100% coupling, more than
+    // maxCoChangePairs (50), all ranked above the in-folder pair.
+    const others = Array.from({ length: 12 }, (_, i) => `other/o${i}.ts`);
+    const write = (files: string[], v: string) => {
+      for (const f of files) fs.writeFileSync(path.join(crowded, f), `export const v = '${v}';\n`);
+      g(['add', '-A']);
+      g(['commit', '-q', '-m', v]);
+    };
+    for (let i = 0; i < 3; i++) write(others, `o${i}`);
+    // sub/a.ts + sub/b.ts change together 3 times, and each once alone: coupling 0.75
+    for (let i = 0; i < 3; i++) write(['sub/a.ts', 'sub/b.ts'], `ab${i}`);
+    write(['sub/a.ts'], 'a');
+    write(['sub/b.ts'], 'b');
+  });
+
+  afterAll(() => {
+    fs.rmSync(crowded, { recursive: true, force: true });
+  });
+
+  it('[SPEC] a subfolder pair outranked repo-wide still gets its line, and the panel lists the same pair', async () => {
+    const session = new TargetSession(path.join(crowded, 'sub'), {
+      onFileChange: () => {}, onLiveEvent: () => {}, onBuildRecorded: () => {},
+    });
+    try {
+      const data = session.getGraphData();
+      const drawn = data.edges.filter(e => e.type === 'co-change')
+        .map(e => [e.source, e.target].map(id => id.replace(/^file:/, '')).sort().join('|'));
+      expect(drawn).toEqual(['a.ts|b.ts']);
+      const listed = session.agentTracker.getGitStats().coChanges.map(c => [c.fileA, c.fileB].sort().join('|'));
+      expect(listed).toEqual(drawn);
+      // Per-file meta joins on the same folder-relative keys
+      const a = data.nodes.find(n => n.id === 'file:a.ts');
+      expect(a?.meta?.commitCount).toBe(4);
+      expect(a?.meta).toHaveProperty('agentRatio', 0);
+    } finally {
+      await session.close();
+    }
   });
 });

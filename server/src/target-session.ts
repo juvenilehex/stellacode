@@ -3,7 +3,6 @@ import { buildGraph } from './graph/builder.js';
 import { createWatcher, type FileChangeEvent } from './watcher.js';
 import { AgentTracker } from './agent/tracker.js';
 import { LiveAgentWatcher } from './agent/live-watcher.js';
-import { CONFIG } from './config.js';
 import { recordBuildMetrics, analyzeMetrics } from './metrics.js';
 import { verifyGraphIntegrity, type IntegrityResult } from './routes/quality.js';
 import type { GraphData } from './graph/types.js';
@@ -34,16 +33,14 @@ function buildCandidate(dir: string, tracker: AgentTracker): CandidateBuild {
   let coChanges;
   let fileGitMeta;
   let fileAgentMeta;
-  let gitPathPrefix;
   if (tracker.isGit) {
-    gitPathPrefix = tracker.getRepoPrefix();
-    const commits = tracker.getGitLog(CONFIG.graphCoChangeLimit);
+    const commits = tracker.getCoChangeLog();
     coChanges = tracker.getCoChanges(commits);
     fileGitMeta = tracker.getFileGitMeta(commits);
     fileAgentMeta = tracker.getFileAgentMeta(commits);
   }
 
-  const candidateGraph = buildGraph(parseResult.files, dir, { coChanges, fileGitMeta, fileAgentMeta, gitPathPrefix });
+  const candidateGraph = buildGraph(parseResult.files, dir, { coChanges, fileGitMeta, fileAgentMeta });
   const buildDurationMs = Date.now() - start;
 
   // L3: Verify integrity

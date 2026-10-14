@@ -2,11 +2,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { CONFIG } from '../config.js';
-import { gitPathToTargetPath } from '../graph/builder.js';
 import type {
   AgentEvent, AgentSession,
   GitCommit, GitBranch, GitCoChange, GitStats, ConventionalType, TimelineCommit,
 } from './types.js';
+
+/**
+ * The one place a git path becomes a path relative to the opened folder. Returns null for a
+ * path outside it — such a file has no node in the graph, so the caller drops it (it is not
+ * matched by basename or any other guess).
+ */
+export function gitPathToTargetPath(gitPath: string, prefix: string | undefined): string | null {
+  if (!prefix) return gitPath;
+  return gitPath.startsWith(prefix) ? gitPath.slice(prefix.length) : null;
+}
 
 // ── Conventional Commit parser ──
 
@@ -97,7 +106,7 @@ export class AgentTracker {
    * Where the opened folder sits inside its git repo, as git spells it ('' at the repo root,
    * 'server/' for a subfolder). `git log --name-status` always prints repo-root-relative paths
    * even when run from a subfolder, while graph node ids are relative to the opened folder —
-   * buildGraph needs this prefix to join the two.
+   * scopeToOpenedFolder uses this prefix to join the two.
    */
   getRepoPrefix(): string {
     if (!this.isGit) return '';
@@ -185,10 +194,11 @@ export class AgentTracker {
   }
 
   /**
-   * The Git panel lists (Hot, Co-Change, timeline) speak the graph's language: paths relative
-   * to the opened folder, and nothing outside it. git log prints repo-root paths for the whole
-   * repo even when run from a subfolder, so each file goes through the same seam buildGraph
-   * uses; a file outside the opened folder has no node and is excluded, not kept repo-wide.
+   * Everything built from git history (graph lines and node meta, the Git panel's Hot,
+   * Co-Change and timeline) speaks the graph's language: paths relative to the opened folder,
+   * and nothing outside it. git log prints repo-root paths for the whole repo even when run
+   * from a subfolder, so this is the one seam they all pass through; a file outside the opened
+   * folder has no node and is excluded, not kept repo-wide.
    * At the repo root the prefix is '' and every path passes through unchanged.
    */
   scopeToOpenedFolder(commits: GitCommit[]): GitCommit[] {
@@ -202,6 +212,16 @@ export class AgentTracker {
         ?.map(fs => ({ ...fs, path: inFolder(fs.path), oldPath: fs.oldPath === undefined ? undefined : inFolder(fs.oldPath) ?? undefined }))
         .filter((fs): fs is typeof fs & { path: string } => fs.path !== null),
     }));
+  }
+
+  /**
+   * The history the co-change analysis reads: the last coChangeLogLimit commits, scoped to the
+   * opened folder BEFORE pairs are ranked. Ranking repo-wide first and scoping after cut a
+   * subfolder's own pairs whenever the rest of the repo had maxCoChangePairs stronger ones (R657).
+   * The graph's co-change lines, the Git panel list and /api/git/co-changes all read this.
+   */
+  getCoChangeLog(): GitCommit[] {
+    return this.scopeToOpenedFolder(this.getGitLog(CONFIG.git.coChangeLogLimit));
   }
 
   // ── Branch Info ──
@@ -351,7 +371,9 @@ export class AgentTracker {
     const commits = this.getGitLog(CONFIG.git.statsLogLimit);
     const branches = this.getBranches();
     const scoped = this.scopeToOpenedFolder(commits);
-    const coChanges = this.getCoChanges(scoped);
+    // Same window as getCoChangeLog (the stats log contains it — config.test checks the limits),
+    // so the panel lists exactly the pairs the graph ranked.
+    const coChanges = this.getCoChanges(scoped.slice(0, CONFIG.git.coChangeLogLimit));
 
     // Commits by type
     const commitsByType = {} as Record<ConventionalType, number>;

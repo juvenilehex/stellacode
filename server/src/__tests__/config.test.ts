@@ -66,7 +66,11 @@ describe('CONFIG shape', () => {
     expect(CONFIG).toHaveProperty('watcher');
     expect(CONFIG).toHaveProperty('git');
     expect(CONFIG).toHaveProperty('scanner');
-    expect(CONFIG).toHaveProperty('graphCoChangeLimit');
+  });
+
+  it('the stats log contains the co-change window (the Git panel ranks the same pairs as the graph)', async () => {
+    const { CONFIG } = await import('../config.js');
+    expect(CONFIG.git.coChangeLogLimit).toBeLessThanOrEqual(CONFIG.git.statsLogLimit);
   });
 
   it('port is a valid number', async () => {

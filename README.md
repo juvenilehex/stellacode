@@ -62,7 +62,7 @@ npm run dev
 |----------------|---------------|
 | **Star** | A file. Size = complexity (symbol count). Color = language. |
 | **Constellation Line** | An import relationship. The declared wiring of your code. |
-| **Co-change Thread** | Files that change together in git, with no import between them. Hidden coupling. |
+| **Co-change Thread** | Files that change together in git. Where no import connects them, that is hidden coupling -- the Git panel's Co-change tab marks each pair as hidden, also linked by an import, or not in the graph (a file the parser doesn't draw). |
 | **Trail** | The path a live Claude Code session left across your codebase (read from its session log). Plain file saves are not trails -- the file watcher can't tell who saved. |
 | **Pulse** | A file changing right now. |
 | **Diamond** | A directory. The structure that holds stars together. |
@@ -168,7 +168,7 @@ The main endpoints are below. The complete list is the routers in [`server/src/r
 | `GET /api/stats` | Project statistics |
 | `GET /api/git/stats` | Git analysis (commits, branches, heatmap, co-changes) |
 | `GET /api/git/log?limit=50` | Parsed git log |
-| `GET /api/git/co-changes` | Temporal coupling analysis |
+| `GET /api/git/co-changes` | Temporal coupling analysis (the same pairs the graph draws and the Git panel lists, scoped to the opened folder) |
 | `GET /api/agent/events` | File-watch events (`agent: "unknown"` -- source can't be attributed) and recent agent commits |
 | `GET /api/agent/sessions` | Active agent sessions |
 | `POST /api/target` | Change target directory (422 with a reason, target unchanged, if the directory yields no valid graph — e.g. no supported source files) |

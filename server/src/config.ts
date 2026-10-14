@@ -67,9 +67,6 @@ export const CONFIG = {
     ]),
   },
 
-  /** Graph rebuild co-change commit limit */
-  graphCoChangeLimit: 300,
-
   /** AI agent detection patterns — add entries to detect new agents */
   agentPatterns: [
     { pattern: /claude/i, name: 'claude-code' },
