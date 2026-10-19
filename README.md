@@ -16,7 +16,7 @@ npx stellacode
 Run it inside a project; StellaCode opens a local observatory for that codebase.
 
 ![StellaCode on the axios repository: the Git panel's Co-change tab with a hidden pair expanded to the commits that changed both files](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/03-constellation-view.png)
-*StellaCode on [axios](https://github.com/axios/axios) (last 500 commits). Its CommonJS and ES-module type-test helpers changed in the same 7 commits and neither imports the other — hidden coupling, with the commits behind it. This is `master`; npm still serves 1.3.0 (March 2026), whose Co-change tab has neither the hidden marks nor the commits. Until the next release, [run from a clone](#quick-start).*
+*StellaCode on [axios](https://github.com/axios/axios): its CommonJS and ES-module type-test helpers changed in the same 7 commits with no import between them — hidden coupling, and the commits behind it. This is `master`; npm's 1.3.0 doesn't list these yet ([run from a clone](#quick-start)).*
 
 ## Quick Start
 
@@ -173,22 +173,16 @@ Browser (React + R3F)
 
 The main endpoints are below. The complete list is the routers in [`server/src/routes/`](server/src/routes/).
 
-| Method | Path | Returns |
-|--------|------|---------|
-| GET | `/api/graph` | Full graph (nodes, edges, stats) |
-| GET | `/api/graph/node/:id` | One node with its connections |
-| GET | `/api/stats` | Project statistics |
-| GET | `/api/git/stats` | Commits, branches, heatmap, co-changes |
-| GET | `/api/git/log?limit=50` | Parsed git log |
-| GET | `/api/git/co-changes` | Co-change pairs |
-| GET | `/api/agent/events` | File-watch events, recent agent commits |
-| GET | `/api/agent/sessions` | Active agent sessions |
-| POST | `/api/target` | Switch the observed directory |
-| GET | `/api/integrity` | Integrity of the latest build |
-
-- `/api/git/co-changes` gives the same pairs the graph draws and the Git panel lists, scoped to the opened folder.
-- File-watch events carry `agent: "unknown"` — a file watcher can't tell who saved.
-- `POST /api/target` answers 422 with the reason and keeps the current target when the directory yields no valid graph (e.g. no supported source files).
+- `GET /api/graph` — full graph (nodes, edges, stats)
+- `GET /api/graph/node/:id` — one node with its connections
+- `GET /api/stats` — project statistics
+- `GET /api/git/stats` — commits, branches, heatmap, co-changes
+- `GET /api/git/log?limit=50` — parsed git log
+- `GET /api/git/co-changes` — co-change pairs: the same pairs the graph draws and the Git panel lists, scoped to the opened folder
+- `GET /api/agent/events` — file-watch events (`agent: "unknown"` — a file watcher can't tell who saved) and recent agent commits
+- `GET /api/agent/sessions` — active agent sessions
+- `POST /api/target` — switch the observed directory; answers 422 with the reason and keeps the current target when the directory yields no valid graph (e.g. no supported source files)
+- `GET /api/integrity` — integrity of the latest build
 
 WebSocket at `ws://localhost:3001/ws` pushes `connected`, `graph:update`, `file:change`, `agent:live`, `quality:alert`, and `build:integrity` events (defined in [`server/src/domain.ts`](server/src/domain.ts) `WsMessageType`). When a rebuild after a file change fails the integrity check, the previous graph stays on screen and the toolbar shows `Build failed HH:MM` (hover for the reason).
 
