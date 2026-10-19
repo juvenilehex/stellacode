@@ -9,8 +9,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # A hung step used to run into GitHub's 6-hour default (smoke:server, June-August 2026).
+    timeout-minutes: 15
 
     strategy:
+      fail-fast: false
       matrix:
         node-version: [20, 22]
 
@@ -22,7 +25,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
-      - run: rm -f package-lock.json client/package-lock.json server/package-lock.json && npm install
+      # Installs exactly what package-lock.json lists. The lockfile carries every
+      # platform's native packages (rollup, lightningcss, tailwind oxide), so it
+      # must be regenerated with npm >= 11.6 when dependencies change -- see CONTRIBUTING.md.
+      - run: npm ci
 
       - run: npm run lint
 
