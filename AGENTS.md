@@ -7,7 +7,7 @@
 ## 프로젝트 개요
 
 **StellaCode**: 코드베이스를 3D 별자리로 시각화하는 관측소.
-파일 = 별, import = 별자리 선, co-change = 숨은 커플링, AI agent 활동 = 궤적.
+파일 = 별, import = 별자리 선(정적 import·re-export·문자열 `import('…')`, `./x.js` 는 TS 해석 순서로 `x.ts`), co-change = 숨은 커플링(쌍마다 함께 바꾼 커밋이 근거), AI agent 활동 = 궤적.
 
 - npm 패키지: `npx stellacode` (버전 정본 = 루트 `package.json`. 화면 표기도 빌드 때 여기서 유도)
 - 라이선스: MIT

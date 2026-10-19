@@ -8,9 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Each co-change pair carries its evidence: click it in the Co-change tab for both full paths, the newest commits that changed both (hash, subject, file count), how many of them changed more than 30 files, and a link to the file in the graph. Pairs seen only in such large commits get a gray bar -- they are marked, not dropped, because a squash-merged pull request is one large commit too
+- The Co-change tab filters by hidden / linked / not in graph / all, opens on the hidden pairs, lists all 50 strongest pairs (it stopped at 15) and says how many pairs there were in total
+- Re-exports (`export … from`, `export * as ns from`, `export type * from`) and `import('…')` with a literal path draw import lines; text in comments, strings and template literals does not
 - The Git panel's Co-change tab marks each pair: hidden (no import between the files), linked by an import too, or not in the graph (a file the parser doesn't draw, such as LICENSE or a stylesheet), with the three counts on top. The coupling badge tooltip gives the same split
 
 ### Fixed
+- TypeScript projects that write relative imports as `./x.js` (Node16/NodeNext ESM) drew no import lines for them, so every co-change pair among those files was reported as hidden coupling. `.js`/`.jsx`/`.mjs`/`.cjs` specifiers now resolve to the TypeScript source first, in TypeScript's own lookup order
 - Opening a subfolder of a repository now draws its co-change lines; graph and Git panel used repo-root paths for one and folder paths for the other
 - In a subfolder, co-change pairs were ranked across the whole repository before files outside the folder were dropped, so pairs the Co-change tab listed could have no line. The graph, the Git panel and `/api/git/co-changes` now share one analysis of the opened folder's history
 - Files and folders with non-ASCII names (e.g. Korean) get their co-change lines and commit counts; git's octal-quoted paths never matched

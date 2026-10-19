@@ -14,6 +14,8 @@ npx stellacode
 ```
 
 > Run it inside a project. StellaCode opens a local observatory for that codebase.
+>
+> npm currently serves 1.3.0 (2026-03-23). Changes listed under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md) -- including the Co-change tab's hidden / linked / not-in-graph marks and commit evidence -- arrive with the next release; until then, run it from a clone (below).
 
 ![StellaCode constellation view](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/03-constellation-view.png)
 
@@ -61,8 +63,8 @@ npm run dev
 | Celestial body | What it means |
 |----------------|---------------|
 | **Star** | A file. Size = complexity (symbol count). Color = language. |
-| **Constellation Line** | An import relationship. The declared wiring of your code. |
-| **Co-change Thread** | Files that change together in git. Where no import connects them, that is hidden coupling -- the Git panel's Co-change tab marks each pair as hidden, also linked by an import, or not in the graph (a file the parser doesn't draw). |
+| **Constellation Line** | An import relationship -- `import … from`, a re-export (`export … from`) or `import('…')` with a literal path. TypeScript's `./x.js` spelling finds `x.ts`. The declared wiring of your code. A computed `import(path)` can't be read, so it draws no line. |
+| **Co-change Thread** | Files that change together in git. Where no import connects them, that is hidden coupling -- the Git panel's Co-change tab marks each pair as hidden, linked by the code (and how), or not in the graph (a file the parser doesn't draw), and opens on the hidden ones. Click a pair for the commits that changed both. Pairs seen only in commits that changed more than 30 files get a gray bar: a release dump or a big merge can join unrelated files. |
 | **Trail** | The path a live Claude Code session left across your codebase (read from its session log). Plain file saves are not trails -- the file watcher can't tell who saved. |
 | **Pulse** | A file changing right now. |
 | **Diamond** | A directory. The structure that holds stars together. |
@@ -77,7 +79,7 @@ npm run dev
 - Search, filter by language, click to inspect
 
 ### Git Intelligence
-- **Co-change detection** -- finds files that always change together, even without imports. These hidden dependencies are often where bugs hide.
+- **Co-change detection** -- finds files that always change together, even without imports. These hidden dependencies are often where bugs hide. Each pair lists the commits behind it -- a place to start asking why.
 - **Conventional commit parsing** -- feat, fix, refactor badges on each commit
 - **Hot files** -- most frequently modified files, ranked
 - **Activity heatmap** -- 30-day commit visualization

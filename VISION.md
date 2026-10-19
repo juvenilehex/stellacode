@@ -133,7 +133,7 @@ Later releases are recorded in [CHANGELOG.md](CHANGELOG.md).
 Core experience is complete. What follows is driven by need.
 
 - **Performance** -- Edge bundling, Smart clustering
-- **Deep Patterns** -- Circular dependency detection, Dead code detection, Type flow tracing
+- **Deep Patterns** -- Dead code shown on screen (the server already flags files whose exports nobody imports; circular imports are already drawn in their own color), Type flow tracing
 - **Platform** -- Electron wrapper, Plugin system
 - **Agent Intelligence** -- Real-time agent detection, Territory colors, Human vs AI regions
 
