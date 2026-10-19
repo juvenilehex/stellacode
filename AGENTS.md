@@ -25,7 +25,7 @@
 | 서버 | Express 5 + ws (WebSocket) + chokidar (파일 감시) |
 | 파서 | Regex 기반 (TypeScript/JavaScript/Python/Go) |
 | 테스트 | Vitest |
-| Node | >= 20.0.0 |
+| Node | >= 20.0.0. 의존성 추가·갱신·삭제는 npm >= 11.6 으로(npm 10 은 edgesOut 로 죽고, 11.3 미만은 lockfile 에서 다른 플랫폼 네이티브 패키지를 뺀다 — CI 는 `npm ci`). 상세 `CONTRIBUTING.md` §Prerequisites |
 
 ## 프로젝트 구조
 
@@ -35,7 +35,7 @@ PJ12_stellacode/
 ├── package.json               # 루트 (npm workspaces)
 ├── tsconfig.json              # 루트 TS 설정
 ├── .env.example               # 환경변수 템플릿
-├── scripts/smoke-server.js    # 서버 스모크 (npm run smoke:server)
+├── scripts/smoke-server.js    # CLI 스모크 — 기동·그래프 API·Ctrl+C 종료 코드 (npm run smoke:server)
 │
 ├── client/                    # 프론트엔드 (React + R3F)
 │   ├── src/

@@ -6,7 +6,7 @@ This document explains how to set up the project, write code, and submit changes
 ## Prerequisites
 
 - Node.js >= 20.0.0
-- npm (comes with Node.js)
+- npm. The npm that comes with Node 20 or 22 (10.x) installs from `package-lock.json` fine. To add, update or remove a dependency use npm >= 11.6 (Node 24 ships it, or `npm install -g npm@11`): npm 10 stops on this dependency tree with `Cannot read properties of null (reading 'edgesOut')` ([npm/cli#9787](https://github.com/npm/cli/issues/9787)), and npm before 11.3 can drop other platforms' native packages (rollup, lightningcss, tailwind oxide) from the lockfile ([npm/cli#4828](https://github.com/npm/cli/issues/4828)) — CI installs with `npm ci` on Linux, so the lockfile has to list them
 - Git
 
 ## Project Structure
@@ -47,6 +47,7 @@ STELLA_TARGET=/path/to/your/project npm run dev
 | `npm run build` | Build both workspaces |
 | `npm test` | Run all tests (server + client) |
 | `npm run lint` | Type-check both workspaces |
+| `npm run smoke:server` | Start the built CLI, check the graph API, stop it with Ctrl+C (needs `npm run build`) |
 | `npm run test -w server` | Run server tests only |
 | `npm run test -w client` | Run client tests only |
 
@@ -119,10 +120,10 @@ Keep the summary under 72 characters. Use the imperative mood ("add", not "added
 
 ### 4. Submit a Pull Request
 
-- Push your branch and open a PR against `main`.
-- Fill in the PR template: what changed, why, and how to test it.
+- Push your branch and open a PR against `master`.
+- In the description, say what changed, why, and how to test it.
 - Link any related issues.
-- Ensure CI passes (build + tests).
+- Ensure CI passes. It runs `npm ci`, `npm run lint`, `npm run build`, `npm run smoke:server` and `npm test` on Node 20 and 22.
 
 ## Reporting Issues
 
