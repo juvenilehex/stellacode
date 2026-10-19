@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { CONFIG } from '../config.js';
 import type {
   AgentEvent, AgentSession,
-  GitCommit, GitBranch, GitCoChange, GitStats, ConventionalType, TimelineCommit,
+  GitCommit, GitBranch, GitCoChange, CoChangeCommit, GitStats, ConventionalType, TimelineCommit,
 } from './types.js';
 
 /**
@@ -255,8 +255,16 @@ export class AgentTracker {
 
   // ── Co-Change Analysis (temporal coupling) ──
 
-  /** Find file pairs that frequently change together */
-  getCoChanges(commits: GitCommit[], minFrequency = CONFIG.git.minCoChangeFrequency): GitCoChange[] {
+  /**
+   * Find file pairs that frequently change together, strongest first (ties: more shared commits first),
+   * at most maxCoChangePairs of them; totalPairs counts every pair that reached minFrequency.
+   * Each listed pair carries its evidence (R675): the newest commits that changed both files, and how many
+   * of all its shared commits were large. Large commits are marked, not dropped — dropping them (code-maat
+   * --max-changeset-size) also drops a squash-merged feature PR, which is one commit of 40-95 files in
+   * repos like twentyhq/twenty; the reader decides with the commits in front of them.
+   * File counts are as seen in `commits` — inside the opened folder when it is a subfolder.
+   */
+  getCoChanges(commits: GitCommit[], minFrequency = CONFIG.git.minCoChangeFrequency): { pairs: GitCoChange[]; totalPairs: number } {
     const pairCount = new Map<string, number>();
     const fileCount = new Map<string, number>();
 
@@ -277,20 +285,40 @@ export class AgentTracker {
       }
     }
 
-    const coChanges: GitCoChange[] = [];
+    const ranked: Array<Pick<GitCoChange, 'fileA' | 'fileB' | 'frequency' | 'coupling'>> = [];
     for (const [key, frequency] of pairCount) {
       if (frequency < minFrequency) continue;
       const parts = key.split('\0');
       if (parts.length < 2) continue;
       const [fileA, fileB] = parts;
       const maxIndividual = Math.max(fileCount.get(fileA) ?? 1, fileCount.get(fileB) ?? 1);
-      coChanges.push({
+      ranked.push({
         fileA, fileB, frequency,
         coupling: frequency / maxIndividual,
       });
     }
 
-    return coChanges.sort((a, b) => b.coupling - a.coupling).slice(0, CONFIG.git.maxCoChangePairs);
+    const top = ranked
+      .sort((a, b) => b.coupling - a.coupling || b.frequency - a.frequency)
+      .slice(0, CONFIG.git.maxCoChangePairs);
+
+    // Evidence only for the listed pairs — one pass over the commits per pair, newest first (git log order).
+    const fileSets = commits.map(c => new Set(c.files));
+    const pairs: GitCoChange[] = top.map(p => {
+      const shared: CoChangeCommit[] = [];
+      let largeShared = 0;
+      commits.forEach((c, i) => {
+        const set = fileSets[i];
+        if (!set.has(p.fileA) || !set.has(p.fileB)) return;
+        if (set.size > CONFIG.git.largeChangesetFiles) largeShared++;
+        if (shared.length < CONFIG.git.coChangeEvidenceCommits) {
+          shared.push({ shortHash: c.shortHash, message: c.message, timestamp: c.timestamp, files: set.size });
+        }
+      });
+      return { ...p, shared, largeShared };
+    });
+
+    return { pairs, totalPairs: ranked.length };
   }
 
   // ── Per-file Git Metadata ──
@@ -373,7 +401,7 @@ export class AgentTracker {
     const scoped = this.scopeToOpenedFolder(commits);
     // Same window as getCoChangeLog (the stats log contains it — config.test checks the limits),
     // so the panel lists exactly the pairs the graph ranked.
-    const coChanges = this.getCoChanges(scoped.slice(0, CONFIG.git.coChangeLogLimit));
+    const coChange = this.getCoChanges(scoped.slice(0, CONFIG.git.coChangeLogLimit));
 
     // Commits by type
     const commitsByType = {} as Record<ConventionalType, number>;
@@ -417,7 +445,9 @@ export class AgentTracker {
       recentCommits: commits.slice(0, CONFIG.git.recentCommitsLimit),
       branches,
       hotFiles,
-      coChanges,
+      coChanges: coChange.pairs,
+      coChangeTotal: coChange.totalPairs,
+      largeChangesetFiles: CONFIG.git.largeChangesetFiles,
       commitsByType,
       commitsByAuthor,
       activityHeatmap,

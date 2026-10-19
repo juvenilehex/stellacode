@@ -48,11 +48,24 @@ export interface GitBranch {
   aheadBehind?: { ahead: number; behind: number };
 }
 
+/** A commit that changed both files of a pair — server CoChangeCommit (R675) */
+export interface CoChangeCommit {
+  shortHash: string;
+  message: string;
+  timestamp: number;
+  /** Files the commit changed (inside the opened folder when it is a subfolder) */
+  files: number;
+}
+
 export interface GitCoChange {
   fileA: string;
   fileB: string;
   frequency: number;
   coupling: number;
+  /** Newest commits that changed both (at most server CONFIG.git.coChangeEvidenceCommits) */
+  shared: CoChangeCommit[];
+  /** How many of all `frequency` shared commits changed more than server CONFIG.git.largeChangesetFiles files */
+  largeShared: number;
 }
 
 export interface GitStats {
@@ -60,7 +73,12 @@ export interface GitStats {
   recentCommits: GitCommit[];
   branches: GitBranch[];
   hotFiles: Array<{ path: string; changeCount: number }>;
+  /** The strongest pairs (server cut: CONFIG.git.maxCoChangePairs) */
   coChanges: GitCoChange[];
+  /** Every pair that changed together often enough, before that cut */
+  coChangeTotal: number;
+  /** A shared commit changing more files than this counts in largeShared (server CONFIG.git.largeChangesetFiles) */
+  largeChangesetFiles: number;
   commitsByType: Record<ConventionalType, number>;
   commitsByAuthor: Record<string, number>;
   activityHeatmap: Array<{ date: string; count: number }>;

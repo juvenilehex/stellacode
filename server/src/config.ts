@@ -46,6 +46,14 @@ export const CONFIG = {
     minCoChangeFrequency: 3,
     /** Maximum co-change pairs to return */
     maxCoChangePairs: 50,
+    /**
+     * A commit changing more files than this is marked 'large' in a pair's evidence (R675). Marked, not
+     * filtered. 30 = code-maat --max-changeset-size default (adamtornhill/code-maat src/code_maat/cmd_line.clj,
+     * read 2026-10-19); gitchurn's README uses the same 30 for --max-changes.
+     */
+    largeChangesetFiles: 30,
+    /** Shared commits shown per co-change pair (display only — the pair's frequency counts them all) */
+    coChangeEvidenceCommits: 5,
     /** Hot files count */
     hotFilesLimit: 20,
     /** Recent commits in stats */

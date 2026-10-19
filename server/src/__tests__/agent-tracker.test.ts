@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { AgentTracker } from '../agent/tracker.js';
 import type { GitCommit } from '../agent/types.js';
 
 // We test the pure functions and logic of the tracker without needing a real git repo.
@@ -57,38 +58,6 @@ function parseConventional(message: string): { type: ConventionalType; scope?: s
     };
   }
   return { type: 'other', subject: message };
-}
-
-// ── Co-change analysis (mirrors AgentTracker.getCoChanges logic) ──
-
-function getCoChanges(commits: GitCommit[], minFrequency = 3): Array<{ fileA: string; fileB: string; frequency: number; coupling: number }> {
-  const pairCount = new Map<string, number>();
-  const fileCount = new Map<string, number>();
-
-  for (const commit of commits) {
-    const uniqueFiles = [...new Set(commit.files)];
-    for (const f of uniqueFiles) {
-      fileCount.set(f, (fileCount.get(f) ?? 0) + 1);
-    }
-    for (let i = 0; i < uniqueFiles.length; i++) {
-      for (let j = i + 1; j < uniqueFiles.length; j++) {
-        const key = [uniqueFiles[i], uniqueFiles[j]].sort().join('\0');
-        pairCount.set(key, (pairCount.get(key) ?? 0) + 1);
-      }
-    }
-  }
-
-  const coChanges: Array<{ fileA: string; fileB: string; frequency: number; coupling: number }> = [];
-  for (const [key, frequency] of pairCount) {
-    if (frequency < minFrequency) continue;
-    const parts = key.split('\0');
-    if (parts.length < 2) continue;
-    const [fileA, fileB] = parts;
-    const maxIndividual = Math.max(fileCount.get(fileA) ?? 1, fileCount.get(fileB) ?? 1);
-    coChanges.push({ fileA, fileB, frequency, coupling: frequency / maxIndividual });
-  }
-
-  return coChanges.sort((a, b) => b.coupling - a.coupling);
 }
 
 // ── Tests ──
@@ -223,17 +192,23 @@ describe('parseConventional', () => {
   });
 });
 
+// The real AgentTracker.getCoChanges (R675) — this block used to test a copy of it kept in this file.
+// getCoChanges only reads the commits it is given; the tracker's own folder does not matter.
 describe('getCoChanges', () => {
-  function makeCommit(files: string[]): GitCommit {
+  const tracker = new AgentTracker(process.cwd());
+  const getCoChanges = (commits: GitCommit[], minFrequency?: number) => tracker.getCoChanges(commits, minFrequency).pairs;
+  let seq = 0;
+  function makeCommit(files: string[], message = 'test'): GitCommit {
+    seq += 1;
     return {
-      hash: 'abc',
-      shortHash: 'abc',
+      hash: `h${seq}`,
+      shortHash: `s${seq}`,
       author: 'Test',
       email: 'test@test.com',
-      timestamp: Date.now(),
-      message: 'test',
+      timestamp: seq * 1000,
+      message,
       conventionalType: 'feat',
-      subject: 'test',
+      subject: message,
       files,
       isAgent: false,
     };
@@ -304,6 +279,42 @@ describe('getCoChanges', () => {
     // coupling: a-b = 4/4 = 1.0, a-c = 3/4 = 0.75, b-c = 3/4 = 0.75
     expect(result.length).toBeGreaterThanOrEqual(1);
     expect(result[0].coupling).toBeGreaterThanOrEqual(result[result.length - 1].coupling);
+  });
+
+  it('breaks a coupling tie by the number of shared commits', () => {
+    const commits = [
+      ...Array.from({ length: 3 }, () => makeCommit(['few1.ts', 'few2.ts'])),
+      ...Array.from({ length: 6 }, () => makeCommit(['many1.ts', 'many2.ts'])),
+    ];
+    // both pairs are 100%; the one seen together 6 times is better evidence than 3
+    expect(getCoChanges(commits, 3).map(c => [c.fileA, c.frequency])).toEqual([['many1.ts', 6], ['few1.ts', 3]]);
+  });
+
+  it('carries the newest shared commits and counts the large ones among all of them (R675)', () => {
+    const bulk = Array.from({ length: 40 }, (_, i) => `bulk${i}.ts`);
+    const commits = [
+      makeCommit(['a.ts', 'b.ts', ...bulk], 'v0.1.0 dump'),
+      makeCommit(['a.ts', 'b.ts'], 'fix: a needs b'),
+      makeCommit(['a.ts', 'b.ts', 'c.ts'], 'feat: c'),
+    ].reverse(); // git log order: newest first
+    const pair = getCoChanges(commits, 3).find(c => c.fileA === 'a.ts' && c.fileB === 'b.ts');
+    expect(pair?.largeShared).toBe(1);
+    expect(pair?.shared.map(s => [s.message, s.files])).toEqual([['feat: c', 3], ['fix: a needs b', 2], ['v0.1.0 dump', 42]]);
+  });
+
+  it('lists at most coChangeEvidenceCommits commits per pair but counts all of them', () => {
+    const commits = Array.from({ length: 8 }, (_, i) => makeCommit(['a.ts', 'b.ts'], `c${i}`)).reverse();
+    const [pair] = getCoChanges(commits, 3);
+    expect(pair.frequency).toBe(8);
+    expect(pair.shared.map(s => s.message)).toEqual(['c7', 'c6', 'c5', 'c4', 'c3']);
+  });
+
+  it('reports every pair that reached the threshold, not only the listed ones', () => {
+    const files = Array.from({ length: 12 }, (_, i) => `f${i}.ts`); // 66 pairs > maxCoChangePairs 50
+    const commits = Array.from({ length: 3 }, () => makeCommit(files));
+    const result = tracker.getCoChanges(commits, 3);
+    expect(result.pairs).toHaveLength(50);
+    expect(result.totalPairs).toBe(66);
   });
 });
 

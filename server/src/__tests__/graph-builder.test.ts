@@ -212,7 +212,7 @@ describe('buildGraph - co-change edges', () => {
     ];
     const graph = buildGraph(files, '/root', {
       coChanges: [
-        { fileA: 'src/a.ts', fileB: 'src/b.ts', frequency: 5, coupling: 0.7 },
+        { fileA: 'src/a.ts', fileB: 'src/b.ts', frequency: 5, coupling: 0.7, shared: [], largeShared: 0 },
       ],
     });
     const coChangeEdges = graph.edges.filter(e => e.type === 'co-change');
@@ -228,7 +228,7 @@ describe('buildGraph - co-change edges', () => {
     ];
     const graph = buildGraph(files, '/root', {
       coChanges: [
-        { fileA: 'src/a.ts', fileB: 'src/b.ts', frequency: 10, coupling: 0.95 },
+        { fileA: 'src/a.ts', fileB: 'src/b.ts', frequency: 10, coupling: 0.95, shared: [], largeShared: 0 },
       ],
     });
     const coChangeEdges = graph.edges.filter(e => e.type === 'co-change');
@@ -241,7 +241,7 @@ describe('buildGraph - co-change edges', () => {
     ];
     const graph = buildGraph(files, '/root', {
       coChanges: [
-        { fileA: 'src/a.ts', fileB: 'src/unknown.ts', frequency: 5, coupling: 0.7 },
+        { fileA: 'src/a.ts', fileB: 'src/unknown.ts', frequency: 5, coupling: 0.7, shared: [], largeShared: 0 },
       ],
     });
     const coChangeEdges = graph.edges.filter(e => e.type === 'co-change');

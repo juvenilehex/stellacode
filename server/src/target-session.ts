@@ -35,7 +35,7 @@ function buildCandidate(dir: string, tracker: AgentTracker): CandidateBuild {
   let fileAgentMeta;
   if (tracker.isGit) {
     const commits = tracker.getCoChangeLog();
-    coChanges = tracker.getCoChanges(commits);
+    coChanges = tracker.getCoChanges(commits).pairs;
     fileGitMeta = tracker.getFileGitMeta(commits);
     fileAgentMeta = tracker.getFileAgentMeta(commits);
   }

@@ -29,7 +29,7 @@ export function createGitRoutes(ctx: ServerContext): Router {
 
   router.get('/git/co-changes', (_req, res) => {
     const tracker = ctx.session.agentTracker;
-    res.json(tracker.getCoChanges(tracker.getCoChangeLog()));
+    res.json(tracker.getCoChanges(tracker.getCoChangeLog()).pairs);
   });
 
   return router;

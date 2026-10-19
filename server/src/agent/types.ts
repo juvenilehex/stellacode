@@ -70,6 +70,16 @@ export interface GitBranch {
   aheadBehind?: { ahead: number; behind: number };
 }
 
+/** One commit that changed both files of a co-change pair — the clue for why they move together (R675) */
+export interface CoChangeCommit {
+  shortHash: string;
+  /** Commit subject line */
+  message: string;
+  timestamp: number;
+  /** Files the commit changed (inside the opened folder when it is a subfolder) */
+  files: number;
+}
+
 export interface GitCoChange {
   fileA: string;
   fileB: string;
@@ -77,6 +87,10 @@ export interface GitCoChange {
   frequency: number;
   /** How often they change together vs independently */
   coupling: number;
+  /** Newest commits that changed both, at most CONFIG.git.coChangeEvidenceCommits */
+  shared: CoChangeCommit[];
+  /** How many of the `frequency` shared commits changed more than CONFIG.git.largeChangesetFiles files */
+  largeShared: number;
 }
 
 export interface GitStats {
@@ -85,8 +99,12 @@ export interface GitStats {
   branches: GitBranch[];
   /** Files most frequently changed */
   hotFiles: Array<{ path: string; changeCount: number }>;
-  /** File pairs that change together (temporal coupling) */
+  /** File pairs that change together (temporal coupling) — the strongest CONFIG.git.maxCoChangePairs */
   coChanges: GitCoChange[];
+  /** Every pair that changed together at least minCoChangeFrequency times, before the cut to coChanges */
+  coChangeTotal: number;
+  /** The 'large commit' line used for largeShared — sent so the client never keeps its own copy */
+  largeChangesetFiles: number;
   /** Commit count by conventional type */
   commitsByType: Record<ConventionalType, number>;
   /** Commit count by author */

@@ -62,14 +62,14 @@ describe('co-change edges when a subfolder of a git repo is opened', () => {
   it('draws the pair inside the subfolder and drops pairs that leave it', () => {
     const tracker = new AgentTracker(path.join(repo, 'sub'));
     // The raw git scan sees all three pairs, spelled repo-root-relative
-    const raw = tracker.getCoChanges(tracker.getGitLog(50));
+    const raw = tracker.getCoChanges(tracker.getGitLog(50)).pairs;
     expect(raw.map(c => [c.fileA, c.fileB].sort().join('|')).filter(k => !k.includes('한글')).sort()).toEqual([
       'other/x.ts|sub/a.ts', 'other/x.ts|sub/b.ts', 'sub/a.ts|sub/b.ts',
     ]);
 
     // The co-change history is scoped to the opened folder before anything is ranked or joined
     const commits = tracker.getCoChangeLog();
-    const coChanges = tracker.getCoChanges(commits);
+    const coChanges = tracker.getCoChanges(commits).pairs;
     expect(coChanges.map(c => [c.fileA, c.fileB].sort().join('|'))).toEqual(['a.ts|b.ts']);
 
     const graph = buildGraph([makeFile('a.ts'), makeFile('b.ts')], path.join(repo, 'sub'), {
@@ -93,7 +93,7 @@ describe('co-change edges when a subfolder of a git repo is opened', () => {
     const commits = tracker.getCoChangeLog();
     const graph = buildGraph(
       [makeFile('sub/a.ts'), makeFile('sub/b.ts'), makeFile('other/x.ts')], repo,
-      { coChanges: tracker.getCoChanges(commits), fileGitMeta: tracker.getFileGitMeta(commits) },
+      { coChanges: tracker.getCoChanges(commits).pairs, fileGitMeta: tracker.getFileGitMeta(commits) },
     );
     expect(graph.nodes.find(n => n.id === 'file:other/x.ts')?.meta?.commitCount).toBe(3);
     expect(graph.edges.filter(e => e.type === 'co-change')).toHaveLength(3);
@@ -119,6 +119,11 @@ describe('Git panel lists when a subfolder of a git repo is opened', () => {
     const tracker = new AgentTracker(path.join(repo, 'sub'));
     const stats = tracker.getGitStats();
     expect(stats.coChanges.map(c => [c.fileA, c.fileB].sort().join('|'))).toEqual(['a.ts|b.ts']);
+    // R675: the panel gets the pair's evidence, counted inside the opened folder, and the totals it states
+    expect(stats.coChanges[0].shared.length).toBe(stats.coChanges[0].frequency);
+    expect(stats.coChanges[0].shared.every(s => s.files === 2 && /^[0-9a-f]{7,}$/.test(s.shortHash))).toBe(true);
+    expect(stats.coChangeTotal).toBe(1);
+    expect(stats.largeChangesetFiles).toBe(30);
     expect(stats.hotFiles.map(h => h.path).sort()).toEqual(['a.ts', 'b.ts']);
     const paths = tracker.getTimeline(50).flatMap(c => c.fileStatuses.map(f => f.path));
     expect(paths.length).toBeGreaterThan(0);
