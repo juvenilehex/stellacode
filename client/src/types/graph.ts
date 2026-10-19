@@ -42,6 +42,8 @@ export interface GraphEdge {
   type: 'import' | 'directory' | 'co-change';
   strength: number;
   label?: string;
+  /** Import lines only: how the code names the other file — server parser ImportKind (R675) */
+  importKind?: 'import' | 're-export' | 'dynamic';
 }
 
 export interface GraphData {

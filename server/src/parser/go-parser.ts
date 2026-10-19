@@ -77,6 +77,7 @@ export function parseGoFile(absolutePath: string, relativePath: string): ParsedF
           isDefault: false,
           isNamespace: alias === '.',
           line: lineNum,
+          kind: 'import',
         });
         continue;
       }
@@ -91,6 +92,7 @@ export function parseGoFile(absolutePath: string, relativePath: string): ParsedF
           isDefault: true,
           isNamespace: false,
           line: lineNum,
+          kind: 'import',
         });
       }
       continue;
@@ -111,6 +113,7 @@ export function parseGoFile(absolutePath: string, relativePath: string): ParsedF
         isDefault: false,
         isNamespace: singleAliasMatch[1] === '.',
         line: lineNum,
+        kind: 'import',
       });
       continue;
     }
@@ -126,6 +129,7 @@ export function parseGoFile(absolutePath: string, relativePath: string): ParsedF
         isDefault: true,
         isNamespace: false,
         line: lineNum,
+        kind: 'import',
       });
       continue;
     }

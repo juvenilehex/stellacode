@@ -52,6 +52,8 @@ export interface GraphEdge {
   /** 0-1 strength */
   strength: number;
   label?: string;
+  /** Import lines only: how the code names the other file (parser ImportKind, R675) */
+  importKind?: import('../parser/types.js').ImportKind;
 }
 
 export interface GraphData {

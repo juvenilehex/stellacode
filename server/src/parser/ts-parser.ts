@@ -26,7 +26,69 @@ const PATTERNS = {
   // lazy .+? quantifiers to prevent catastrophic backtracking (ReDoS) on
   // pathological input such as lines with many spaces before '='.
   require: /(?:const|let|var)\s+([^=\n]+?)\s*=\s*require\(['"]([^'"]+)['"]\)/,
+  // Re-exports name another file too (R675): export { a, b as c } from · export * from ·
+  // export * as ns from · export type { T } from · export type * from
+  reExport: /^export\s+(?:type\s+)?(\*(?:\s+as\s+\w+)?|\{[^}]*\})\s*from\s+['"]([^'"]+)['"]/,
+  reExportOpen: /^export\s+(?:type\s+)?\{/,
 };
+
+/** Names a re-export takes from the other file — the left side of `a as b` (what that file must export). */
+function reExportSpecifiers(clause: string): { specifiers: string[]; isNamespace: boolean } {
+  if (clause.startsWith('*')) {
+    const ns = clause.match(/\*\s+as\s+(\w+)/);
+    return { specifiers: [ns?.[1] ?? '*'], isNamespace: true };
+  }
+  const inner = clause.slice(1, -1);
+  const names = inner.split(',')
+    .map(s => (s.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0] ?? '').trim())
+    .filter(Boolean);
+  return { specifiers: names, isNamespace: false };
+}
+
+/**
+ * Literal `import('…')` calls in the code part of one line (R675) — what a dynamic import or a type-position
+ * `import('…').T` points at. A small scanner rather than a regex so that the same text inside a string,
+ * a template literal or a trailing comment is not taken for code (test fixtures and docs hold such text).
+ * `inTemplate` carries a template literal across lines; the returned flag says whether this line ends inside one.
+ * Limits: `${…}` code inside a template is treated as string; a non-literal `import(x)` cannot be resolved by
+ * any static reader and is skipped; regex literals are not recognised, so a quote inside one can hide the rest of that line.
+ */
+export function scanDynamicImports(line: string, inTemplate: boolean): { sources: string[]; endsInTemplate: boolean } {
+  const sources: string[] = [];
+  let quote: string | null = inTemplate ? '`' : null;
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (quote) {
+      if (ch === '\\') { i += 2; continue; }
+      if (ch === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (ch === '/' && line[i + 1] === '/') break;
+    if (ch === '/' && line[i + 1] === '*') {
+      const end = line.indexOf('*/', i + 2);
+      if (end === -1) break;
+      i = end + 2;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') { quote = ch; i++; continue; }
+    if (line.startsWith('import', i) && !/[\w$.]/.test(line[i - 1] ?? '')) {
+      const call = /^import\s*\(\s*(['"`])/.exec(line.slice(i));
+      if (call) {
+        const open = i + call[0].length;
+        const close = line.indexOf(call[1], open);
+        if (close === -1) { i = open; quote = call[1]; continue; }
+        const src = line.slice(open, close);
+        if (!(call[1] === '`' && src.includes('${'))) sources.push(src);
+        i = close + 1;
+        continue;
+      }
+    }
+    i++;
+  }
+  return { sources, endsInTemplate: quote === '`' };
+}
 
 function parseImportSpecifiers(raw: string): { specifiers: string[]; isDefault: boolean; isNamespace: boolean } {
   const trimmed = raw.trim();
@@ -76,6 +138,7 @@ export function parseTsFile(absolutePath: string, relativePath: string): ParsedF
   let inClass = false;
   let braceDepth = 0;
   let inBlockComment = false;
+  let inTemplate = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -90,10 +153,19 @@ export function parseTsFile(absolutePath: string, relativePath: string): ParsedF
       continue;
     }
 
+    // A line that starts inside a multi-line template literal is string text: its `import … from` and
+    // `import('…')` are fixtures, not references. Imports are read only from code after the closing backtick.
+    const startsInTemplate = inTemplate;
+    const dynamic = scanDynamicImports(line, inTemplate);
+    inTemplate = dynamic.endsInTemplate;
+    for (const source of dynamic.sources) {
+      imports.push({ source, specifiers: [], isDefault: false, isNamespace: false, line: lineNum, kind: 'dynamic' });
+    }
+
     // Skip comments and empty lines
     if (trimmed === '' || trimmed.startsWith('//')) continue;
     if (trimmed.startsWith('/*')) {
-      if (!trimmed.includes('*/')) {
+      if (!startsInTemplate && !trimmed.includes('*/')) {
         inBlockComment = true;
       }
       continue;
@@ -108,41 +180,60 @@ export function parseTsFile(absolutePath: string, relativePath: string): ParsedF
 
     const isExported = trimmed.startsWith('export');
 
-    // Multi-line import: accumulate lines until closing from '...'
-    if (trimmed.startsWith('import') && trimmed.includes('{') && !trimmed.includes('}')) {
-      let accumulated = trimmed;
-      let maxLines = 50;
-      while (i + 1 < lines.length && !accumulated.includes('}') && --maxLines > 0) {
-        i++;
-        accumulated += ' ' + lines[i].trim();
+    if (!startsInTemplate) {
+      // Multi-line import / re-export: accumulate lines until the closing brace
+      const multiImport = trimmed.startsWith('import') && trimmed.includes('{') && !trimmed.includes('}');
+      const multiReExport = PATTERNS.reExportOpen.test(trimmed) && !trimmed.includes('}');
+      if (multiImport || multiReExport) {
+        let accumulated = trimmed;
+        let maxLines = 50;
+        while (i + 1 < lines.length && !accumulated.includes('}') && --maxLines > 0) {
+          i++;
+          accumulated += ' ' + lines[i].trim();
+        }
+        if (multiImport) {
+          const multiMatch = accumulated.match(PATTERNS.importFrom);
+          if (multiMatch) {
+            const { specifiers, isDefault, isNamespace } = parseImportSpecifiers(multiMatch[1]);
+            imports.push({ source: multiMatch[2], specifiers, isDefault, isNamespace, line: lineNum, kind: 'import' });
+          }
+        } else {
+          const multiMatch = accumulated.match(PATTERNS.reExport);
+          if (multiMatch) {
+            const { specifiers, isNamespace } = reExportSpecifiers(multiMatch[1]);
+            imports.push({ source: multiMatch[2], specifiers, isDefault: false, isNamespace, line: lineNum, kind: 're-export' });
+          }
+        }
+        continue;
       }
-      const multiMatch = accumulated.match(PATTERNS.importFrom);
-      if (multiMatch) {
-        const { specifiers, isDefault, isNamespace } = parseImportSpecifiers(multiMatch[1]);
-        imports.push({ source: multiMatch[2], specifiers, isDefault, isNamespace, line: lineNum });
+
+      // Imports
+      const importMatch = trimmed.match(PATTERNS.importFrom);
+      if (importMatch) {
+        const { specifiers, isDefault, isNamespace } = parseImportSpecifiers(importMatch[1]);
+        imports.push({ source: importMatch[2], specifiers, isDefault, isNamespace, line: lineNum, kind: 'import' });
+        continue;
       }
-      continue;
-    }
 
-    // Imports
-    let importMatch = trimmed.match(PATTERNS.importFrom);
-    if (importMatch) {
-      const { specifiers, isDefault, isNamespace } = parseImportSpecifiers(importMatch[1]);
-      imports.push({ source: importMatch[2], specifiers, isDefault, isNamespace, line: lineNum });
-      continue;
-    }
+      const sideMatch = trimmed.match(PATTERNS.importSide);
+      if (sideMatch) {
+        imports.push({ source: sideMatch[1], specifiers: [], isDefault: false, isNamespace: false, line: lineNum, kind: 'import' });
+        continue;
+      }
 
-    const sideMatch = trimmed.match(PATTERNS.importSide);
-    if (sideMatch) {
-      imports.push({ source: sideMatch[1], specifiers: [], isDefault: false, isNamespace: false, line: lineNum });
-      continue;
-    }
+      const reExportMatch = trimmed.match(PATTERNS.reExport);
+      if (reExportMatch) {
+        const { specifiers, isNamespace } = reExportSpecifiers(reExportMatch[1]);
+        imports.push({ source: reExportMatch[2], specifiers, isDefault: false, isNamespace, line: lineNum, kind: 're-export' });
+        continue;
+      }
 
-    const requireMatch = trimmed.match(PATTERNS.require);
-    if (requireMatch) {
-      const { specifiers, isDefault, isNamespace } = parseImportSpecifiers(requireMatch[1]);
-      imports.push({ source: requireMatch[2], specifiers, isDefault, isNamespace, line: lineNum });
-      continue;
+      const requireMatch = trimmed.match(PATTERNS.require);
+      if (requireMatch) {
+        const { specifiers, isDefault, isNamespace } = parseImportSpecifiers(requireMatch[1]);
+        imports.push({ source: requireMatch[2], specifiers, isDefault, isNamespace, line: lineNum, kind: 'import' });
+        continue;
+      }
     }
 
     // Classes

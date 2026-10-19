@@ -256,3 +256,80 @@ describe('parseTsFile - error handling', () => {
     expect(result.size).toBe(0);
   });
 });
+
+// R675: re-exports and literal import('…') name another file as much as an import does. Before this
+// they drew no line, so a co-change pair joined only by them read as hidden coupling.
+describe('parseTsFile - re-exports and dynamic imports', () => {
+  const kinds = (code: string, name: string) =>
+    parseTsFile(writeTmpFile(name, code), name).imports.map(i => [i.kind, i.source, i.specifiers]);
+
+  it('tags plain imports as import', () => {
+    expect(kinds(`import { a } from './a';\nimport './side';\n`, 'plain.ts')).toEqual([
+      ['import', './a', ['a']],
+      ['import', './side', []],
+    ]);
+  });
+
+  it('reads every re-export form, taking the name the other file exports', () => {
+    const code = [
+      `export { scanDirectory } from './scanner.js';`,
+      `export type { ParsedFile, ParsedImport as PI } from './types.js';`,
+      `export * from './all';`,
+      `export * as ns from './ns';`,
+      `export type * from './typesOnly';`,
+      `export {`,
+      `  one,`,
+      `  two as deux,`,
+      `} from './multi';`,
+    ].join('\n');
+    expect(kinds(code, 'reexports.ts')).toEqual([
+      ['re-export', './scanner.js', ['scanDirectory']],
+      ['re-export', './types.js', ['ParsedFile', 'ParsedImport']],
+      ['re-export', './all', ['*']],
+      ['re-export', './ns', ['ns']],
+      ['re-export', './typesOnly', ['*']],
+      ['re-export', './multi', ['one', 'two']],
+    ]);
+  });
+
+  it('does not take a local export list or export declarations for a re-export', () => {
+    const code = `const a = 1, b = 2;\nexport { a, b };\nexport {\n  a as c,\n};\nexport const d = { e: 1 };\n`;
+    expect(kinds(code, 'localexports.ts')).toEqual([]);
+  });
+
+  it('reads literal dynamic imports anywhere in a line, including type positions', () => {
+    const code = [
+      `const { CONFIG } = await import('../config.js');`,
+      `const View = lazy(() => import("./View"));`,
+      'const tpl = await import(`./tpl`);',
+      `type S = import('../parser/types.js').ParsedSymbol;`,
+    ].join('\n');
+    expect(kinds(code, 'dynamic.ts')).toEqual([
+      ['dynamic', '../config.js', []],
+      ['dynamic', './View', []],
+      ['dynamic', './tpl', []],
+      ['dynamic', '../parser/types.js', []],
+    ]);
+  });
+
+  it('skips import() text in comments, strings, template literals and non-literal calls', () => {
+    const code = [
+      `// const x = await import('./commented');`,
+      `/* import('./block') */ const y = 1;`,
+      `const s = "await import('./in-string')";`,
+      `const t = 'import("./in-single")';`,
+      `const z = load(); // then import('./trailing')`,
+      'const u = await import(`./${name}`);',
+      `const v = await import(name);`,
+      `const w = api.import('./method');`,
+      'const fixture = `',
+      `import { a } from './fixture-static';`,
+      `const b = await import('./fixture-dynamic');`,
+      '`;',
+      `import { real } from './after-template';`,
+    ].join('\n');
+    expect(kinds(code, 'negatives.ts')).toEqual([
+      ['import', './after-template', ['real']],
+    ]);
+  });
+});

@@ -121,6 +121,7 @@ export function buildGraph(files: ParsedFile[], rootDir: string, options?: Build
           type: 'import',
           strength: 0.6,
           label: imp.specifiers.join(', '),
+          importKind: imp.kind,
         });
 
         // Update degree
@@ -264,12 +265,37 @@ function detectCircularDeps(edges: GraphEdge[]): Set<string> {
   return cycleEdgeIds;
 }
 
+/**
+ * TypeScript's file extension substitution: a specifier that names a JavaScript file is looked up as
+ * its TypeScript source first — './mod.js' → mod.ts, mod.tsx, mod.d.ts, then mod.js itself.
+ * Order copied from TypeScript 5.9.3 src/compiler/moduleNameResolver.ts tryAddingExtensions (TS handbook
+ * "Modules — Reference: File extension substitution"; webpack resolve.extensionAlias documents the same
+ * '.ts before .js' order). node16/nodenext ESM requires the '.js' spelling in relative imports, so before
+ * this a TS server's imports drew no lines — 74 in this repo's server/src — and every co-change pair
+ * between its files read as hidden coupling (R675). A source next to its build output resolves to the source.
+ */
+const TS_EXTENSION_SUBSTITUTION: Record<string, string[]> = {
+  '.js': ['.ts', '.tsx', '.d.ts', '.js', '.jsx'],
+  '.jsx': ['.tsx', '.ts', '.d.ts', '.jsx', '.js'],
+  '.mjs': ['.mts', '.d.mts', '.mjs'],
+  '.cjs': ['.cts', '.d.cts', '.cjs'],
+};
+
 function resolveImport(fromFile: string, importSource: string, knownFiles: Set<string>): string | undefined {
   // Skip external/node_modules imports
   if (!importSource.startsWith('.') && !importSource.startsWith('/')) return undefined;
 
   const fromDir = path.dirname(fromFile);
   const resolved = path.posix.normalize(path.posix.join(fromDir, importSource));
+
+  const written = path.posix.extname(resolved);
+  const substitutes = TS_EXTENSION_SUBSTITUTION[written];
+  if (substitutes) {
+    const base = resolved.slice(0, -written.length);
+    for (const ext of substitutes) {
+      if (knownFiles.has(base + ext)) return base + ext;
+    }
+  }
 
   // Try exact match, then with extensions (including Python)
   const extensions = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.py', '/index.ts', '/index.tsx', '/index.js', '/__init__.py'];

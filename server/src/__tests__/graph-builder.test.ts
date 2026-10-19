@@ -90,7 +90,7 @@ describe('buildGraph - edges', () => {
   it('creates import edges for relative imports', () => {
     const files: ParsedFile[] = [
       makeFile('src/index.ts', {
-        imports: [{ source: './utils', specifiers: ['helper'], isDefault: false, isNamespace: false, line: 1 }],
+        imports: [{ source: './utils', specifiers: ['helper'], isDefault: false, isNamespace: false, line: 1, kind: 'import' }],
       }),
       makeFile('src/utils.ts'),
     ];
@@ -104,7 +104,7 @@ describe('buildGraph - edges', () => {
   it('does not create edges for external (non-relative) imports', () => {
     const files: ParsedFile[] = [
       makeFile('src/index.ts', {
-        imports: [{ source: 'express', specifiers: ['default'], isDefault: true, isNamespace: false, line: 1 }],
+        imports: [{ source: 'express', specifiers: ['default'], isDefault: true, isNamespace: false, line: 1, kind: 'import' }],
       }),
     ];
     const graph = buildGraph(files, '/root');
@@ -116,8 +116,8 @@ describe('buildGraph - edges', () => {
     const files: ParsedFile[] = [
       makeFile('src/index.ts', {
         imports: [
-          { source: './utils', specifiers: ['a'], isDefault: false, isNamespace: false, line: 1 },
-          { source: './utils', specifiers: ['b'], isDefault: false, isNamespace: false, line: 2 },
+          { source: './utils', specifiers: ['a'], isDefault: false, isNamespace: false, line: 1, kind: 'import' },
+          { source: './utils', specifiers: ['b'], isDefault: false, isNamespace: false, line: 2, kind: 'import' },
         ],
       }),
       makeFile('src/utils.ts'),
@@ -127,10 +127,72 @@ describe('buildGraph - edges', () => {
     expect(importEdges).toHaveLength(1);
   });
 
+  // R675: node16/nodenext ESM writes relative imports with '.js' even though the file on disk is '.ts'.
+  // Before TS extension substitution none of these drew a line.
+  it.each([
+    ['./utils.js', 'src/utils.ts'],
+    ['./view.js', 'src/view.tsx'],
+    ['./types.js', 'src/types.d.ts'],
+    ['./view.jsx', 'src/view.tsx'],
+    ['./esm.mjs', 'src/esm.mts'],
+    ['./cjs.cjs', 'src/cjs.cts'],
+  ])('resolves %s to its TypeScript source %s', (spec, target) => {
+    const files: ParsedFile[] = [
+      makeFile('src/index.ts', {
+        imports: [{ source: spec, specifiers: ['x'], isDefault: false, isNamespace: false, line: 1, kind: 'import' }],
+      }),
+      makeFile(target),
+    ];
+    const importEdges = buildGraph(files, '/root').edges.filter(e => e.type === 'import');
+    expect(importEdges.map(e => e.target)).toEqual([`file:${target}`]);
+  });
+
+  it('prefers the TypeScript source over its build output next to it (TypeScript lookup order)', () => {
+    const files: ParsedFile[] = [
+      makeFile('src/index.ts', {
+        imports: [{ source: './utils.js', specifiers: ['x'], isDefault: false, isNamespace: false, line: 1, kind: 'import' }],
+      }),
+      makeFile('src/utils.ts'),
+      makeFile('src/utils.js', { language: 'javascript' }),
+    ];
+    const importEdges = buildGraph(files, '/root').edges.filter(e => e.type === 'import');
+    expect(importEdges.map(e => e.target)).toEqual(['file:src/utils.ts']);
+  });
+
+  it('still resolves a plain JavaScript file named in the specifier', () => {
+    const files: ParsedFile[] = [
+      makeFile('src/index.js', {
+        language: 'javascript',
+        imports: [{ source: './utils.js', specifiers: ['x'], isDefault: false, isNamespace: false, line: 1, kind: 'import' }],
+      }),
+      makeFile('src/utils.js', { language: 'javascript' }),
+    ];
+    const importEdges = buildGraph(files, '/root').edges.filter(e => e.type === 'import');
+    expect(importEdges.map(e => e.target)).toEqual(['file:src/utils.js']);
+  });
+
+  it('tags each import line with how the code names the other file', () => {
+    const files: ParsedFile[] = [
+      makeFile('src/index.ts', {
+        imports: [
+          { source: './scanner.js', specifiers: ['scan'], isDefault: false, isNamespace: false, line: 1, kind: 're-export' },
+          { source: './config.js', specifiers: [], isDefault: false, isNamespace: false, line: 2, kind: 'dynamic' },
+        ],
+      }),
+      makeFile('src/scanner.ts'),
+      makeFile('src/config.ts'),
+    ];
+    const importEdges = buildGraph(files, '/root').edges.filter(e => e.type === 'import');
+    expect(importEdges.map(e => [e.target, e.importKind])).toEqual([
+      ['file:src/scanner.ts', 're-export'],
+      ['file:src/config.ts', 'dynamic'],
+    ]);
+  });
+
   it('updates degree for connected nodes', () => {
     const files: ParsedFile[] = [
       makeFile('src/a.ts', {
-        imports: [{ source: './b', specifiers: ['x'], isDefault: false, isNamespace: false, line: 1 }],
+        imports: [{ source: './b', specifiers: ['x'], isDefault: false, isNamespace: false, line: 1, kind: 'import' }],
       }),
       makeFile('src/b.ts'),
     ];
@@ -191,10 +253,10 @@ describe('buildGraph - circular dependency detection', () => {
   it('marks circular import edges', () => {
     const files: ParsedFile[] = [
       makeFile('src/a.ts', {
-        imports: [{ source: './b', specifiers: ['x'], isDefault: false, isNamespace: false, line: 1 }],
+        imports: [{ source: './b', specifiers: ['x'], isDefault: false, isNamespace: false, line: 1, kind: 'import' }],
       }),
       makeFile('src/b.ts', {
-        imports: [{ source: './a', specifiers: ['y'], isDefault: false, isNamespace: false, line: 1 }],
+        imports: [{ source: './a', specifiers: ['y'], isDefault: false, isNamespace: false, line: 1, kind: 'import' }],
       }),
     ];
     const graph = buildGraph(files, '/root');
@@ -235,7 +297,7 @@ describe('buildGraph - dead code detection', () => {
   it('does not mark files that are imported by others', () => {
     const files: ParsedFile[] = [
       makeFile('src/index.ts', {
-        imports: [{ source: './utils', specifiers: ['helper'], isDefault: false, isNamespace: false, line: 1 }],
+        imports: [{ source: './utils', specifiers: ['helper'], isDefault: false, isNamespace: false, line: 1, kind: 'import' }],
       }),
       makeFile('src/utils.ts', {
         symbols: [
