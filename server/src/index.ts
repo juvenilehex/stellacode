@@ -93,7 +93,7 @@ app.use('/api/', (req, res, next) => {
   next();
 });
 
-setInterval(() => {
+const rateLimitSweep = setInterval(() => {
   const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS;
   for (const [ip, timestamps] of _rateLimitStore) {
     const recent = timestamps.filter(t => t > cutoff);
@@ -132,6 +132,7 @@ if (fs.existsSync(clientDistPath) && fs.statSync(clientDistPath).isDirectory()) 
 let rebuildTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function onFileChange(event: FileChangeEvent) {
+  if (shuttingDown) return;
   console.log(`[Watch] ${event.type}: ${event.relativePath}`);
 
   const agentEvent = session.agentTracker.trackFileChange(
@@ -200,12 +201,35 @@ server.listen(PORT, '127.0.0.1', () => {
   }
 });
 
-// Graceful shutdown
-function shutdown() {
-  console.log('[StellaCode] Shutting down...');
-  session.close();
-  broadcaster.close();
-  server.close();
+// Graceful shutdown. Every handle is released so the process ends on its own with
+// exit code 0; a handle left open would keep it running, so a deadline exits with 1
+// and names what was still open. One Ctrl+C in a terminal delivers SIGINT to this
+// process and the CLI wrapper (bin/stellacode.js) forwards SIGTERM as well, so
+// repeated signals during shutdown are ignored instead of cutting it short.
+const SHUTDOWN_DEADLINE_MS = 5000;
+let shuttingDown = false;
+
+function shutdown(signal: NodeJS.Signals) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[StellaCode] Shutting down (${signal})...`);
+  setTimeout(() => {
+    console.error(`[StellaCode] Still running ${SHUTDOWN_DEADLINE_MS / 1000}s after ${signal}; open: ${process.getActiveResourcesInfo().join(', ')}`);
+    process.exit(1);
+  }, SHUTDOWN_DEADLINE_MS).unref();
+
+  clearInterval(rateLimitSweep);
+  if (rebuildTimeout) clearTimeout(rebuildTimeout);
+  server.close();               // stop accepting connections and upgrades
+  broadcaster.close();          // drop open WebSocket clients
+  server.closeAllConnections(); // keep-alive HTTP sockets would hold server.close() open
+  session.close().then(
+    () => { process.exitCode = 0; },
+    (err: unknown) => {
+      console.error('[StellaCode] Closing the file watcher failed:', err);
+      process.exit(1);
+    },
+  );
 }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);

@@ -122,8 +122,12 @@ export class WsBroadcaster {
     return ids;
   }
 
+  /** Stops the heartbeat and drops every open client. `wss.close()` alone leaves
+   *  open connections running (ws 8), and an open browser tab would then keep the
+   *  process alive after Ctrl+C. */
   close(): void {
     clearInterval(this.heartbeatTimer);
+    for (const client of this.wss.clients) client.terminate();
     this.wss.close();
   }
 }

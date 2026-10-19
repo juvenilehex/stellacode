@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Git panel's Co-change tab marks each pair: hidden (no import between the files), linked by an import too, or not in the graph (a file the parser doesn't draw, such as LICENSE or a stylesheet), with the three counts on top. The coupling badge tooltip gives the same split
 
 ### Fixed
+- Ctrl+C now stops StellaCode on macOS and Linux. With a browser tab connected, the server closed its listener but kept the open WebSocket (and, in builds from April on, a cleanup timer) alive, so it never exited and the terminal hung waiting for it. Shutdown now drops the connections and exits; if anything is still open after 5 seconds it exits with code 1 and names it
 - TypeScript projects that write relative imports as `./x.js` (Node16/NodeNext ESM) drew no import lines for them, so every co-change pair among those files was reported as hidden coupling. `.js`/`.jsx`/`.mjs`/`.cjs` specifiers now resolve to the TypeScript source first, in TypeScript's own lookup order
 - Opening a subfolder of a repository now draws its co-change lines; graph and Git panel used repo-root paths for one and folder paths for the other
 - In a subfolder, co-change pairs were ranked across the whole repository before files outside the folder were dropped, so pairs the Co-change tab listed could have no line. The graph, the Git panel and `/api/git/co-changes` now share one analysis of the opened folder's history
