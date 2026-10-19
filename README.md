@@ -1,8 +1,8 @@
 # StellaCode
 
-**Code Observatory** -- observe your codebase as a living constellation.
+**Code Observatory** — observe your codebase as a living constellation.
 
-**See what your AI agent changed, surface hidden coupling debt (files that always change together but share no import), and replay your git history -- all local, in your terminal. No cloud, no code leaves your machine.**
+**See what your AI agent changed, surface hidden coupling debt (files that always change together but share no import), and replay your git history — all local, in your terminal. No cloud, no code leaves your machine.**
 
 [![npm version](https://img.shields.io/npm/v/stellacode?color=CB3837&logo=npm)](https://www.npmjs.com/package/stellacode)
 [![CI](https://github.com/juvenilehex/stellacode/actions/workflows/ci.yml/badge.svg)](https://github.com/juvenilehex/stellacode/actions/workflows/ci.yml)
@@ -13,23 +13,10 @@
 npx stellacode
 ```
 
-> Run it inside a project. StellaCode opens a local observatory for that codebase.
->
-> npm currently serves 1.3.0 (2026-03-23). Changes listed under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md) -- including the Co-change tab's hidden / linked / not-in-graph marks and commit evidence -- arrive with the next release; until then, run it from a clone (below).
+Run it inside a project; StellaCode opens a local observatory for that codebase.
 
-![StellaCode constellation view](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/03-constellation-view.png)
-
-## Why
-
-We talk to AI, and code appears. Files multiply. One day you look around and realize you have a project you built -- but don't quite recognize anymore. Where does this connect? What did the AI change while you weren't looking? What keeps quietly breaking together?
-
-It can feel a little overwhelming. We thought it might help to just... see it.
-
-Every file becomes a star. Every import draws a constellation line. Hidden couplings -- files that always change together but share no import -- glow as teal threads you never knew existed. And when a Claude Code session touches your code, it leaves a trail across the sky.
-
-**Understand your project at a glance, and maybe feel something while you do.**
-
-If you've been staring at strings of text in a dark room for hours, we hope watching your code quietly glow and orbit can offer a moment of calm. Your project is alive. It's growing. And now you can see it.
+![StellaCode on the axios repository: the Git panel's Co-change tab with a hidden pair expanded to the commits that changed both files](https://raw.githubusercontent.com/juvenilehex/stellacode/master/screenshots/03-constellation-view.png)
+*StellaCode on [axios](https://github.com/axios/axios) (last 500 commits). Its CommonJS and ES-module type-test helpers changed in the same 7 commits and neither imports the other — hidden coupling, with the commits behind it. This is `master`; npm still serves 1.3.0 (March 2026), whose Co-change tab has neither the hidden marks nor the commits. Until the next release, [run from a clone](#quick-start).*
 
 ## Quick Start
 
@@ -63,11 +50,32 @@ npm run dev
 | Celestial body | What it means |
 |----------------|---------------|
 | **Star** | A file. Size = complexity (symbol count). Color = language. |
-| **Constellation Line** | An import relationship -- `import … from`, a re-export (`export … from`) or `import('…')` with a literal path. TypeScript's `./x.js` spelling finds `x.ts`. The declared wiring of your code. A computed `import(path)` can't be read, so it draws no line. |
-| **Co-change Thread** | Files that change together in git. Where no import connects them, that is hidden coupling -- the Git panel's Co-change tab marks each pair as hidden, linked by the code (and how), or not in the graph (a file the parser doesn't draw), and opens on the hidden ones. Click a pair for the commits that changed both. Pairs seen only in commits that changed more than 30 files get a gray bar: a release dump or a big merge can join unrelated files. |
-| **Trail** | The path a live Claude Code session left across your codebase (read from its session log). Plain file saves are not trails -- the file watcher can't tell who saved. |
+| **Constellation Line** | An import between two files — the declared wiring of your code. |
+| **Co-change Thread** | Two files that change together in git. With no import between them, that is hidden coupling. |
+| **Trail** | The path a live Claude Code session leaves across your code. |
 | **Pulse** | A file changing right now. |
 | **Diamond** | A directory. The structure that holds stars together. |
+
+<details>
+<summary>How lines, threads and trails are read</summary>
+
+- **Lines** come from `import … from`, re-exports (`export … from`) and `import('…')` with a literal path. TypeScript's `./x.js` spelling finds `x.ts`. A computed `import(path)` can't be read, so it draws no line.
+- **Threads**: the Git panel's Co-change tab marks each pair as hidden, linked by the code (and how), or not in the graph (a file the parser doesn't draw), and opens on the hidden ones. Click a pair for the commits that changed both. Pairs seen only in commits that changed more than 30 files get a gray bar — a release dump or a big merge can join unrelated files.
+- **Trails** are read from Claude Code's session log. Plain file saves are not trails — the file watcher can't tell who saved.
+
+</details>
+
+## Why
+
+We talk to AI, and code appears. Files multiply. One day you look around and realize you have a project you built — but don't quite recognize anymore. Where does this connect? What did the AI change while you weren't looking? What keeps quietly breaking together?
+
+It can feel a little overwhelming. We thought it might help to just... see it.
+
+Every file becomes a star. Every import draws a constellation line. Hidden couplings — files that always change together but share no import — glow as teal threads you never knew existed. And when a Claude Code session touches your code, it leaves a trail across the sky.
+
+**Understand your project at a glance, and maybe feel something while you do.**
+
+If you've been staring at strings of text in a dark room for hours, we hope watching your code quietly glow and orbit can offer a moment of calm. Your project is alive. It's growing. And now you can see it.
 
 ## Features
 
@@ -79,11 +87,11 @@ npm run dev
 - Search, filter by language, click to inspect
 
 ### Git Intelligence
-- **Co-change detection** -- finds files that always change together, even without imports. These hidden dependencies are often where bugs hide. Each pair lists the commits behind it -- a place to start asking why.
-- **Conventional commit parsing** -- feat, fix, refactor badges on each commit
-- **Hot files** -- most frequently modified files, ranked
-- **Activity heatmap** -- 30-day commit visualization
-- **Branch status** -- current branch, clean/dirty state
+- **Co-change detection** — finds files that always change together, even without imports. These hidden dependencies are often where bugs hide. Each pair lists the commits behind it — a place to start asking why.
+- **Conventional commit parsing** — feat, fix, refactor badges on each commit
+- **Hot files** — most frequently modified files, ranked
+- **Activity heatmap** — 30-day commit visualization
+- **Branch status** — current branch, clean/dirty state
 
 ### AI Agent Tracking
 - Detects commits from Claude Code, Copilot, Cursor, Aider, Codeium, Tabnine, Windsurf, Devin, Amazon Q, Gemini, and Bolt
@@ -91,18 +99,18 @@ npm run dev
 - See the boundary between human and machine work
 
 ### Visual Experience
-- **Entry animation** -- stars bloom into existence when the constellation loads
-- **Complexity glow** -- complex files burn brighter
-- **Co-change pulse** -- coupled files breathe together
-- **Code age coloring** -- old stars glow red, new stars glow blue
-- **Agent color mode** -- see which AI touched which file
-- **Nebula clouds, shooting stars, 4-layer starfield** -- deep space atmosphere
-- **3-point cinematic lighting** -- warm key, cool fill, purple rim
+- **Entry animation** — stars bloom into existence when the constellation loads
+- **Complexity glow** — complex files burn brighter
+- **Co-change pulse** — coupled files breathe together
+- **Code age coloring** — old stars glow red, new stars glow blue
+- **Agent color mode** — see which AI touched which file
+- **Nebula clouds, shooting stars, 4-layer starfield** — deep space atmosphere
+- **3-point cinematic lighting** — warm key, cool fill, purple rim
 
 ### Time Travel
-- **Commit replay** -- watch your constellation grow commit by commit
-- **Timeline slider** -- scrub through your project's history
-- **Playback controls** -- play, pause, rewind
+- **Commit replay** — watch your constellation grow commit by commit
+- **Timeline slider** — scrub through your project's history
+- **Playback controls** — play, pause, rewind
 
 ### Observe Mode
 Press `O` to hide all UI and watch the stars quietly. Just your code, breathing in the dark.
@@ -133,18 +141,20 @@ Click the capture button in the toolbar ("Save screenshot (PNG)") to save a PNG 
 ## Architecture
 
 ```
-Browser (React + R3F)            Server (Express)
-  Three.js 3D scene                Directory scanner
-  Zustand stores                   Code parser (TS/JS/Python/Go)
-  UI panels                        Graph builder + force layout
-  WebSocket client                 WebSocket broadcaster
-                                   File watcher (chokidar)
-                                   Agent tracker (git + .claude/)
-```
-
-```
-Data flow:
-  Your Project --> Scanner --> Parser --> Graph Builder --> Force Layout --> WebSocket --> 3D Scene
+Your project
+  │
+  ▼
+Server (Express)
+  directory scanner
+  code parser (TS/JS/Python/Go)
+  graph builder + force layout
+  file watcher (chokidar)
+  agent tracker (git + .claude/)
+  │ WebSocket
+  ▼
+Browser (React + R3F)
+  Three.js 3D scene
+  Zustand stores, UI panels
 ```
 
 ### Tech Stack
@@ -163,18 +173,22 @@ Data flow:
 
 The main endpoints are below. The complete list is the routers in [`server/src/routes/`](server/src/routes/).
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/graph` | Full graph (nodes, edges, stats) |
-| `GET /api/graph/node/:id` | Single node with connections |
-| `GET /api/stats` | Project statistics |
-| `GET /api/git/stats` | Git analysis (commits, branches, heatmap, co-changes) |
-| `GET /api/git/log?limit=50` | Parsed git log |
-| `GET /api/git/co-changes` | Temporal coupling analysis (the same pairs the graph draws and the Git panel lists, scoped to the opened folder) |
-| `GET /api/agent/events` | File-watch events (`agent: "unknown"` -- source can't be attributed) and recent agent commits |
-| `GET /api/agent/sessions` | Active agent sessions |
-| `POST /api/target` | Change target directory (422 with a reason, target unchanged, if the directory yields no valid graph — e.g. no supported source files) |
-| `GET /api/integrity` | Integrity check of the latest build of the current target |
+| Method | Path | Returns |
+|--------|------|---------|
+| GET | `/api/graph` | Full graph (nodes, edges, stats) |
+| GET | `/api/graph/node/:id` | One node with its connections |
+| GET | `/api/stats` | Project statistics |
+| GET | `/api/git/stats` | Commits, branches, heatmap, co-changes |
+| GET | `/api/git/log?limit=50` | Parsed git log |
+| GET | `/api/git/co-changes` | Co-change pairs |
+| GET | `/api/agent/events` | File-watch events, recent agent commits |
+| GET | `/api/agent/sessions` | Active agent sessions |
+| POST | `/api/target` | Switch the observed directory |
+| GET | `/api/integrity` | Integrity of the latest build |
+
+- `/api/git/co-changes` gives the same pairs the graph draws and the Git panel lists, scoped to the opened folder.
+- File-watch events carry `agent: "unknown"` — a file watcher can't tell who saved.
+- `POST /api/target` answers 422 with the reason and keeps the current target when the directory yields no valid graph (e.g. no supported source files).
 
 WebSocket at `ws://localhost:3001/ws` pushes `connected`, `graph:update`, `file:change`, `agent:live`, `quality:alert`, and `build:integrity` events (defined in [`server/src/domain.ts`](server/src/domain.ts) `WsMessageType`). When a rebuild after a file change fails the integrity check, the previous graph stays on screen and the toolbar shows `Build failed HH:MM` (hover for the reason).
 
@@ -188,7 +202,7 @@ npm test          # Run server + client tests
 ```
 
 ```bash
-# Dogfooding -- observe StellaCode with StellaCode
+# Dogfooding — observe StellaCode with StellaCode
 STELLA_TARGET=./ npm run dev
 ```
 
@@ -196,7 +210,7 @@ STELLA_TARGET=./ npm run dev
 
 StellaCode is still young, and we'd love to hear what you think.
 
-- **Discord**: [Join the server](https://discord.gg/VGQJSda5eZ) -- share your constellation, tell us what's broken, or just say hi
+- **Discord**: [Join the server](https://discord.gg/VGQJSda5eZ) — share your constellation, tell us what's broken, or just say hi
 - **GitHub Issues**: open an issue if you prefer
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
