@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { couplingCounts, couplingBadgeTitle, coChangeStatuses } from '../GitPanel';
+import { couplingCounts, couplingBadgeTitle, coChangeStatuses, importLinkKind, pairEvidence, initialCouplingFilter } from '../GitPanel';
 
 const coChanges = [
   { fileA: 'a.ts', fileB: 'b.ts' },
@@ -47,5 +47,39 @@ describe('Co-change 탭의 쌍 상태 (R657)', () => {
 
   it('그래프가 아직 없으면 전부 off-graph — 숨은 결합이라 부르지 않는다', () => {
     expect(coChangeStatuses(coChanges, undefined)).toEqual(['off-graph', 'off-graph', 'off-graph']);
+  });
+});
+
+// R675: the tab gives the reason, not only the score — what links an 'import' pair, how much of the
+// evidence is bulk commits, and which pairs the list opens on.
+describe('Co-change 탭의 근거 (R675)', () => {
+  const linked = [
+    { type: 'import' as const, source: 'file:b.ts', target: 'file:a.ts', importKind: 're-export' as const },
+    { type: 'import' as const, source: 'file:c.ts', target: 'file:d.ts', importKind: 'dynamic' as const },
+    { type: 'import' as const, source: 'file:e.ts', target: 'file:f.ts' },
+  ];
+
+  it('import 쌍은 어떤 종류의 참조로 이어졌는지 말한다 (방향 무관), 이어지지 않았으면 null', () => {
+    expect(importLinkKind('a.ts', 'b.ts', linked)).toBe('re-export');
+    expect(importLinkKind('d.ts', 'c.ts', linked)).toBe('dynamic');
+    expect(importLinkKind('e.ts', 'f.ts', linked)).toBe('import');
+    expect(importLinkKind('a.ts', 'z.ts', linked)).toBeNull();
+  });
+
+  it('함께 바뀐 커밋이 전부 큰 커밋이면 그렇다고 말한다', () => {
+    expect(pairEvidence({ frequency: 3, largeShared: 3 }, 30)).toBe(
+      'changed together in 3 commits, every one of them over 30 files — a bulk commit can join unrelated files');
+    expect(pairEvidence({ frequency: 5, largeShared: 2 }, 30)).toBe('changed together in 5 commits, 2 of them over 30 files');
+    expect(pairEvidence({ frequency: 4, largeShared: 0 }, 30)).toBe('changed together in 4 commits, none of them over 30 files');
+  });
+
+  it('목록은 숨은 결합이 있으면 그것부터 연다', () => {
+    expect(initialCouplingFilter(['off-graph', 'hidden', 'import'])).toBe('hidden');
+    expect(initialCouplingFilter(['off-graph', 'import'])).toBe('all');
+  });
+
+  it('목록을 앞 15쌍으로 자르지 않는다 — 머리말이 센 쌍은 전부 열 수 있어야 한다', () => {
+    const src = readFileSync(join(__dirname, '..', 'GitPanel.tsx'), 'utf-8');
+    expect(src).not.toMatch(/coChanges\.slice\(0,\s*15\)/);
   });
 });

@@ -67,6 +67,38 @@ export function coChangeStatuses(
   });
 }
 
+/**
+ * How the code links an 'import' pair (R675): the import line's kind, either direction. A re-export or a
+ * literal import('…') links the two as much as an import does — the tag says which, so 'import' is not overclaimed.
+ */
+export function importLinkKind(
+  fileA: string,
+  fileB: string,
+  edges: readonly (EdgeEnds & Pick<GraphEdge, 'importKind'>)[] | undefined,
+): 'import' | 're-export' | 'dynamic' | null {
+  const k = pairKey(fileA, fileB);
+  const line = (edges ?? []).find(e => e.type === 'import' && edgePairKey(e) === k);
+  return line ? (line.importKind ?? 'import') : null;
+}
+
+/**
+ * The evidence sentence for one pair (R675): how often the two changed together and how many of those
+ * commits were large (changed more than `largeLine` files — a release dump or a squash-merged PR).
+ */
+export function pairEvidence(cc: { frequency: number; largeShared: number }, largeLine: number): string {
+  const together = `changed together in ${cc.frequency} commit${cc.frequency === 1 ? '' : 's'}`;
+  if (cc.largeShared === 0) return `${together}, none of them over ${largeLine} files`;
+  if (cc.largeShared === cc.frequency) return `${together}, every one of them over ${largeLine} files — a bulk commit can join unrelated files`;
+  return `${together}, ${cc.largeShared} of them over ${largeLine} files`;
+}
+
+export type CouplingFilter = CoChangeStatus | 'all';
+
+/** The list's first view: the hidden pairs when there are any — finding them is what the tab is for. */
+export function initialCouplingFilter(statuses: readonly CoChangeStatus[]): CouplingFilter {
+  return statuses.includes('hidden') ? 'hidden' : 'all';
+}
+
 type GitTab = 'timeline' | 'types' | 'hot' | 'coupling';
 
 export function GitPanel() {
@@ -328,8 +360,19 @@ function HotFilesTab({ stats }: { stats: GitStats }) {
 
 // ── Coupling: files that change together ──
 
+const FILTER_LABEL: Record<CouplingFilter, string> = {
+  hidden: 'hidden', import: 'import', 'off-graph': 'not in graph', all: 'all',
+};
+
 function CouplingTab({ stats, edges }: { stats: GitStats; edges: readonly GraphEdge[] | undefined }) {
   const C = useThemeColors();
+  const nodeMap = useGraphStore(s => s.nodeMap);
+  const selectNode = useGraphStore(s => s.selectNode);
+  const statuses = coChangeStatuses(stats.coChanges, edges);
+  // null = not picked yet: follow the data (hidden first), so a graph that arrives later still lands on hidden
+  const [picked, setPicked] = useState<CouplingFilter | null>(null);
+  const [openPair, setOpenPair] = useState<string | null>(null);
+
   if (stats.coChanges.length === 0) {
     return (
       <div className="px-3 py-4 text-center" style={{ color: C.textSecondary }}>
@@ -338,45 +381,94 @@ function CouplingTab({ stats, edges }: { stats: GitStats; edges: readonly GraphE
     );
   }
 
-  const statuses = coChangeStatuses(stats.coChanges, edges);
-  const count = (s: CoChangeStatus) => statuses.filter(x => x === s).length;
+  const filter = picked ?? initialCouplingFilter(statuses);
+  const count = (s: CouplingFilter) => s === 'all' ? statuses.length : statuses.filter(x => x === s).length;
+  const rows = stats.coChanges
+    .map((cc, i) => ({ cc, status: statuses[i] }))
+    .filter(r => filter === 'all' || r.status === filter);
 
   return (
     <div className="px-3 py-2 space-y-1">
-      <div className="text-[10px] mb-2" style={{ color: C.textSecondary }}
-        title="hidden: a co-change line with no import between the two files. import: an import already connects them. not in graph: a file of the pair is not a star (not a parsed source file, or deleted), so no line is drawn">
-        Files that frequently change together (temporal coupling) — of {stats.coChanges.length}:{' '}
-        <span style={{ color: COLORS.coChangeEdge }}>{count('hidden')} hidden</span>
-        {' · '}{count('import')} also import{' · '}{count('off-graph')} not in graph
+      <div className="text-[10px]" style={{ color: C.textSecondary }}
+        title="Pairs of files that changed in the same commits, ranked by how often they move together. hidden: a co-change line with no import between the two files. import: the code links them (import, re-export or import('…')). not in graph: a file of the pair is not a star (not a parsed source file, or deleted), so no line is drawn">
+        Files that change together — the {stats.coChanges.length} strongest of {stats.coChangeTotal} pairs. Click a pair for the commits.
       </div>
-      {stats.coChanges.slice(0, 15).map((cc, i) => {
-        const status = statuses[i];
-        const tag = status === 'import' ? 'import' : status === 'off-graph' ? 'no line' : '';
-        const why = status === 'hidden' ? 'line in the graph, no import between them'
-          : status === 'import' ? 'line in the graph, alongside an import'
-          : 'no line: a file of this pair is not in the graph';
+      <div className="flex gap-1 mb-1" role="group" aria-label="Show pairs">
+        {(['hidden', 'import', 'off-graph', 'all'] as const).map(f => (
+          <button key={f} onClick={() => { setPicked(f); setOpenPair(null); }}
+            aria-pressed={filter === f}
+            className="px-1.5 py-0.5 rounded text-[10px]"
+            style={{
+              color: filter === f ? (f === 'hidden' ? COLORS.coChangeEdge : C.textPrimary) : C.textSecondary,
+              background: filter === f ? 'rgba(255,255,255,0.08)' : 'transparent',
+            }}>
+            {count(f)} {FILTER_LABEL[f]}
+          </button>
+        ))}
+      </div>
+      {rows.length === 0 && (
+        <div className="py-2 text-[10px]" style={{ color: C.textSecondary }}>
+          No {FILTER_LABEL[filter]} pair among these {stats.coChanges.length}.
+        </div>
+      )}
+      {rows.map(({ cc, status }) => {
+        const key = `${cc.fileA}\0${cc.fileB}`;
+        const open = openPair === key;
+        const link = status === 'import' ? importLinkKind(cc.fileA, cc.fileB, edges) : null;
+        const tag = status === 'hidden' ? 'hidden' : status === 'off-graph' ? 'no line' : (link ?? 'import');
+        const bulk = cc.largeShared === cc.frequency;
+        // a pair seen only in bulk commits is weak evidence — its bar does not take the coupling colour
+        const strength = bulk ? C.textSecondary : COLORS.coChangeEdge;
+        const inGraph = [cc.fileA, cc.fileB].filter(f => nodeMap.has(`file:${f}`));
         return (
-          <div key={i} className="flex items-center gap-1.5 py-0.5"
-            style={{ opacity: status === 'off-graph' ? 0.45 : 1 }}
-            title={`${cc.fileA} ↔ ${cc.fileB}\n${cc.frequency} commits together · ${why}`}>
-            <span className="font-mono truncate flex-1" style={{ color: C.textPrimary, fontSize: '9px' }}>
-              {cc.fileA.split('/').pop()}
-            </span>
-            <div className="shrink-0 flex items-center gap-1">
-              <div className="w-8 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                <div className="h-full rounded-full"
-                  style={{ width: `${cc.coupling * 100}%`, background: COLORS.coChangeEdge }} />
+          <div key={key} style={{ opacity: status === 'off-graph' && !open ? 0.55 : 1 }}>
+            <button onClick={() => setOpenPair(open ? null : key)} aria-expanded={open}
+              className="w-full flex items-center gap-1.5 py-0.5 text-left"
+              title={`${cc.fileA} ↔ ${cc.fileB}\n${pairEvidence(cc, stats.largeChangesetFiles)}`}>
+              <span className="font-mono truncate flex-1" style={{ color: C.textPrimary, fontSize: '9px' }}>
+                {cc.fileA.split('/').pop()}
+              </span>
+              <span className="shrink-0 flex items-center gap-1">
+                <span className="w-8 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                  <span className="block h-full rounded-full" style={{ width: `${cc.coupling * 100}%`, background: strength }} />
+                </span>
+                <span className="font-mono w-7 text-right" style={{ color: strength, fontSize: '9px' }}>
+                  {Math.round(cc.coupling * 100)}%
+                </span>
+                <span className="font-mono w-11 text-center" style={{ color: status === 'hidden' ? COLORS.coChangeEdge : C.textSecondary, fontSize: '8px' }}>
+                  {tag}
+                </span>
+              </span>
+              <span className="font-mono truncate flex-1" style={{ color: C.textPrimary, fontSize: '9px' }}>
+                {cc.fileB.split('/').pop()}
+              </span>
+            </button>
+            {open && (
+              <div className="ml-1 mb-1.5 pl-2 border-l space-y-0.5 text-[10px]" style={{ borderColor: C.panelBorder, color: C.textSecondary }}>
+                <div className="font-mono break-all" style={{ color: C.textPrimary }}>{cc.fileA}</div>
+                <div className="font-mono break-all" style={{ color: C.textPrimary }}>{cc.fileB}</div>
+                <div>{Math.round(cc.coupling * 100)}% — {pairEvidence(cc, stats.largeChangesetFiles)}</div>
+                {cc.shared.map(s => (
+                  <div key={s.shortHash} className="flex gap-1.5">
+                    <span className="font-mono shrink-0" style={{ color: C.textPrimary }}>{s.shortHash}</span>
+                    <span className="truncate flex-1">{s.message}</span>
+                    <span className="font-mono shrink-0" style={{ color: s.files > stats.largeChangesetFiles ? C.textPrimary : C.textSecondary }}>
+                      {s.files} files
+                    </span>
+                  </div>
+                ))}
+                {cc.frequency > cc.shared.length && <div>+{cc.frequency - cc.shared.length} older</div>}
+                {inGraph.length > 0 && (
+                  <div className="flex gap-1.5 pt-0.5">
+                    {inGraph.map(f => (
+                      <button key={f} onClick={() => selectNode(`file:${f}`)} className="underline" style={{ color: C.textPrimary }}>
+                        show {f.split('/').pop()} in graph
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <span className="font-mono" style={{ color: COLORS.coChangeEdge, fontSize: '9px' }}>
-                {Math.round(cc.coupling * 100)}%
-              </span>
-              <span className="font-mono w-9 text-center" style={{ color: C.textSecondary, fontSize: '8px' }}>
-                {tag}
-              </span>
-            </div>
-            <span className="font-mono truncate flex-1 text-right" style={{ color: C.textPrimary, fontSize: '9px' }}>
-              {cc.fileB.split('/').pop()}
-            </span>
+            )}
           </div>
         );
       })}
