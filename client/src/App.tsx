@@ -151,9 +151,14 @@ function Observatory() {
           <Legend />
         </DraggablePanel>
 
+        {/* Git pill: centred on the screen (left/right 0 + auto margins + fit-content), so the panel it opens —
+            centred on the pill, at most the screen width minus 2rem — never leaves the viewport (R699: a fixed
+            marginLeft cut 51px off the panel at 390px). On narrow screens the legend wraps to two lines; the pill
+            sits above it instead of on it. */}
         <DraggablePanel
           visible={panels.gitPanel}
-          defaultStyle={{ bottom: 52, left: '50%', marginLeft: -192 }}
+          className="bottom-[52px] max-sm:bottom-[84px]"
+          defaultStyle={{ left: 0, right: 0, marginLeft: 'auto', marginRight: 'auto', width: 'fit-content' }}
         >
           <GitPanel />
         </DraggablePanel>

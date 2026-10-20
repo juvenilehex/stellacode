@@ -73,3 +73,16 @@ describe('mergePersistedSettings — a save from an older version (R572)', () =>
     expect(merged.nodeStyles.typescript).toEqual(current.nodeStyles.typescript);
   });
 });
+
+// R699: the Git panel list starts open — the hidden coupling is the first screen — and a close is remembered.
+describe('Git panel open state (R699)', () => {
+  it('[SPEC] opens by default, a close is kept in the store, and an older save without the key opens it', () => {
+    const current = useSettingsStore.getState();
+    expect(current.gitPanelOpen).toBe(true);
+    current.setGitPanelOpen(false);
+    expect(useSettingsStore.getState().gitPanelOpen).toBe(false);
+    expect(mergePersistedSettings({ fontSize: 14 }, current).gitPanelOpen).toBe(true);
+    expect(mergePersistedSettings({ gitPanelOpen: false }, current).gitPanelOpen).toBe(false);
+    useSettingsStore.getState().setGitPanelOpen(true);
+  });
+});

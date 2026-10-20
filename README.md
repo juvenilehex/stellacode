@@ -60,7 +60,7 @@ npm run dev
 <summary>How lines, threads and trails are read</summary>
 
 - **Lines** come from `import … from`, re-exports (`export … from`) and `import('…')` with a literal path. TypeScript's `./x.js` spelling finds `x.ts`. A computed `import(path)` can't be read, so it draws no line.
-- **Threads**: the Git panel's Co-change tab marks each pair as hidden, linked by the code (and how), or not in the graph (a file the parser doesn't draw), and opens on the hidden ones. Click a pair for the commits that changed both. Pairs seen only in commits that changed more than 30 files get a gray bar — a release dump or a big merge can join unrelated files.
+- **Threads**: the Git panel opens on its Co-change tab (close it and it stays closed). It marks each pair as hidden, linked by the code (and how), or not in the graph (a file the parser doesn't draw), starts on the hidden ones and shows the commits behind the first pair; click any pair for its commits. Pairs are ordered by how many of those commits changed 30 files or fewer (`commits`, e.g. `1/3`), or by `%` from the column head. The gray part of a bar is the share from bigger commits — a release dump or a big merge can join unrelated files.
 - **Trails** are read from Claude Code's session log. Plain file saves are not trails — the file watcher can't tell who saved.
 
 </details>
@@ -82,7 +82,7 @@ If you've been staring at strings of text in a dark room for hours, we hope watc
 ### Code Structure
 - 3D force-directed graph with golden ratio spiral layout
 - Files as stars, directories as diamonds, imports as constellation lines
-- Language detection (TypeScript, JavaScript, Python, Go) with color coding
+- Language detection (TypeScript, JavaScript, Python, Go) — TypeScript, JavaScript and Python get their own colors; Go files are drawn in the neutral color for now
   > Currently supports TypeScript, JavaScript, Python, and Go. Want another language? [Let us know on Discord.](https://discord.gg/VGQJSda5eZ)
 - Search, filter by language, click to inspect
 

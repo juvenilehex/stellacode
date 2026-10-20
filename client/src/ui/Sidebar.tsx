@@ -33,6 +33,9 @@ export function Sidebar() {
   if (!data) return null;
 
   const { stats } = data;
+  // 'Connections' sums every kind of line (R699: it read as code links alone) — the title says which
+  const kinds = data.edges.reduce<Record<string, number>>((acc, e) => ({ ...acc, [e.type]: (acc[e.type] ?? 0) + 1 }), {});
+  const connectionsTitle = `All lines in the graph: ${kinds['import'] ?? 0} import, ${kinds['directory'] ?? 0} folder, ${kinds['co-change'] ?? 0} co-change`;
 
   return (
     <div className="fixed top-4 left-4 w-56 rounded-lg text-xs select-none pointer-events-auto"
@@ -63,7 +66,7 @@ export function Sidebar() {
         <StatRow label="Files" value={stats.totalFiles} tc={C} />
         <StatRow label="Directories" value={stats.totalDirs} tc={C} />
         <StatRow label="Symbols" value={stats.totalSymbols} tc={C} />
-        <StatRow label="Connections" value={stats.totalEdges} tc={C} />
+        <StatRow label="Connections" value={stats.totalEdges} tc={C} title={connectionsTitle} />
 
         {/* Languages */}
         <div className="pt-1.5" style={{ borderTop: `1px solid ${C.panelBorder}` }}>
@@ -77,8 +80,8 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Keyboard hints */}
-      <div className="px-3 py-2 space-y-0.5" style={{ borderTop: `1px solid ${C.panelBorder}` }}>
+      {/* Keyboard and mouse hints — not on narrow (touch) screens, where they don't apply */}
+      <div className="px-3 py-2 space-y-0.5 max-sm:hidden" style={{ borderTop: `1px solid ${C.panelBorder}` }}>
         <div style={{ color: C.textSecondary }}>
           Click node to focus | ESC to reset
         </div>
@@ -92,9 +95,9 @@ export function Sidebar() {
   );
 }
 
-function StatRow({ label, value, tc }: { label: string; value: number; tc: { textPrimary: string; textSecondary: string } }) {
+function StatRow({ label, value, tc, title }: { label: string; value: number; tc: { textPrimary: string; textSecondary: string }; title?: string }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between" title={title}>
       <span style={{ color: tc.textSecondary }}>{label}</span>
       <span style={{ color: tc.textPrimary }} className="font-mono">{value}</span>
     </div>

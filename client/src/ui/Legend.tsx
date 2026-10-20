@@ -20,7 +20,20 @@ const LABEL_MODE_DISPLAY = {
   off: 'Labels: Off',
 } as const;
 
+const LANGUAGE_KEYS: readonly FilterKey[] = ['typescript', 'javascript', 'python'];
+
+/**
+ * The language entries the legend shows (R699): only languages with files in this graph — a fixed 'Python' entry on
+ * a repo without one keyed nothing. Read from the graph stats, not kept as a list. Go is parsed but has no colour
+ * category yet (utils/colors.ts), so it has no entry.
+ */
+export function legendLanguages(languages: Readonly<Record<string, number>> | undefined): Set<FilterKey> {
+  return new Set(LANGUAGE_KEYS.filter(k => (languages?.[k] ?? 0) > 0));
+}
+
 export function Legend() {
+  const languages = useGraphStore(s => s.data?.stats.languages);
+  const shownLanguages = legendLanguages(languages);
   const hiddenFilters = useGraphStore(s => s.hiddenFilters);
   const toggleFilter = useGraphStore(s => s.toggleFilter);
   const labelMode = useSettingsStore(s => s.labelMode);
@@ -43,9 +56,9 @@ export function Legend() {
   };
 
   return (
-    <div className="flex items-center flex-wrap gap-x-3 gap-y-1 px-3 py-1.5 rounded-lg text-[11px] select-none pointer-events-auto"
+    <div className="flex items-center flex-wrap gap-x-3 gap-y-1 px-3 py-1.5 rounded-lg text-xs select-none pointer-events-auto"
       style={{ background: C.panelBg, border: `1px solid ${C.panelBorder}`, maxWidth: 'calc(100vw - 32px)' }}>
-      {LEGEND_ITEMS.map(item => {
+      {LEGEND_ITEMS.filter(item => !LANGUAGE_KEYS.includes(item.key) || shownLanguages.has(item.key)).map(item => {
         const isHidden = hiddenFilters.has(item.key);
         const c = getColor(item);
         return (

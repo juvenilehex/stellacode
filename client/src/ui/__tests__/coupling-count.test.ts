@@ -7,7 +7,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { couplingCounts, couplingBadgeTitle, coChangeStatuses, importLinkKind, pairEvidence, initialCouplingFilter } from '../GitPanel';
+import { couplingCounts, couplingBadgeTitle, coChangeStatuses, importLinkKind, pairEvidence, initialCouplingFilter, evidenceSplit, sortPairs } from '../GitPanel';
+import { legendLanguages } from '../Legend';
 
 const coChanges = [
   { fileA: 'a.ts', fileB: 'b.ts' },
@@ -81,5 +82,54 @@ describe('Co-change 탭의 근거 (R675)', () => {
   it('목록을 앞 15쌍으로 자르지 않는다 — 머리말이 센 쌍은 전부 열 수 있어야 한다', () => {
     const src = readFileSync(join(__dirname, '..', 'GitPanel.tsx'), 'utf-8');
     expect(src).not.toMatch(/coChanges\.slice\(0,\s*15\)/);
+  });
+});
+
+// R699: the first row on this repo was 100% from three release commits (30·53·61 files) and drew as the strongest
+// hidden coupling. The large line stays the server's (> 30, as code-maat's exceeds-max-changeset-size); what changes
+// is the order and the bar.
+describe('Co-change 목록의 순서와 막대 (R699)', () => {
+  const dump = { frequency: 3, largeShared: 2, coupling: 1 };        // 1위였던 LODController.tsx ↔ layout.ts
+  const real = { frequency: 4, largeShared: 0, coupling: 0.67 };     // live-watcher.ts ↔ ts-parser.ts
+  const mixed = { frequency: 5, largeShared: 2, coupling: 0.83 };    // ConstellationEdge ↔ ConstellationNode
+  const allBulk = { frequency: 3, largeShared: 3, coupling: 0.75 };  // AgentPanel ↔ Breadcrumb
+
+  it('막대는 두 구간 — 작은 커밋 몫(청록)과 큰 커밋 몫(회색)의 합이 결합도다', () => {
+    const s = evidenceSplit(dump);
+    expect(s.smallCommits).toBe(1);
+    expect(s.small).toBeCloseTo(1 / 3);
+    expect(s.large).toBeCloseTo(2 / 3);
+    expect(s.small + s.large).toBeCloseTo(dump.coupling);
+    expect(evidenceSplit(allBulk)).toMatchObject({ small: 0, smallCommits: 0 });
+    expect(evidenceSplit(real).large).toBe(0);
+  });
+
+  it("기본 순서('commits')는 작은 커밋 근거가 많은 쌍부터 — 큰 커밋으로만 묶인 쌍은 내려가되 빠지지 않는다", () => {
+    const rows = [dump, mixed, allBulk, real];   // 서버 순서(결합도)
+    expect(sortPairs(rows, 'commits', r => r)).toEqual([real, mixed, dump, allBulk]);
+    expect(sortPairs(rows, 'percent', r => r)).toEqual(rows);
+  });
+
+  it('작은 커밋 수가 같으면 결합도, 그것도 같으면 들어온 순서', () => {
+    const a = { frequency: 3, largeShared: 0, coupling: 0.75 };
+    const b = { frequency: 3, largeShared: 0, coupling: 0.75 };
+    const c = { frequency: 4, largeShared: 1, coupling: 0.8 };
+    expect(sortPairs([a, b, c], 'commits', r => r)).toEqual([c, a, b]);
+  });
+
+  it('패널이 고정 폭·고정 왼쪽 여백으로 놓이지 않고, 글씨를 12px 아래로 박지 않는다', () => {
+    const panel = readFileSync(join(__dirname, '..', 'GitPanel.tsx'), 'utf-8');
+    const app = readFileSync(join(__dirname, '..', '..', 'App.tsx'), 'utf-8');
+    expect(panel).not.toMatch(/\bw-96\b/);
+    expect(app).not.toMatch(/marginLeft:\s*-192/);
+    expect(panel).not.toMatch(/text-\[(8|9|10|11)px\]|fontSize:\s*'(8|9|10|11)px'/);
+  });
+});
+
+describe('범례의 언어 항목 (R699)', () => {
+  it('그래프에 파일이 있는 언어만 — 없는 Python 을 고정으로 싣지 않는다', () => {
+    expect([...legendLanguages({ typescript: 96, javascript: 2 })].sort()).toEqual(['javascript', 'typescript']);
+    expect([...legendLanguages({ python: 3, go: 5 })]).toEqual(['python']);
+    expect(legendLanguages(undefined).size).toBe(0);
   });
 });

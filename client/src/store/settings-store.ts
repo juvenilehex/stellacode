@@ -67,8 +67,12 @@ interface SettingsState {
   scanMaxDepth: number;
   /** Active theme */
   theme: ThemeId;
+  /** Git panel list (tabs + Co-change) expanded above the branch pill. Open at first so the hidden coupling is on the
+   *  first screen (R699); closing it is remembered. */
+  gitPanelOpen: boolean;
 
   togglePanel: (key: keyof UIPanelVisibility) => void;
+  setGitPanelOpen: (open: boolean) => void;
   setColorMode: (mode: 'language' | 'age' | 'agent') => void;
   setEdgePulse: (on: boolean) => void;
   setComplexityGlow: (value: number) => void;
@@ -167,10 +171,12 @@ export const useSettingsStore = create<SettingsState>()(
       scanMaxFiles: 10000,
       scanMaxDepth: 30,
       theme: 'deep-space' as ThemeId,
+      gitPanelOpen: true,
 
       togglePanel: (key) => set((s) => ({
         panels: { ...s.panels, [key]: !s.panels[key] },
       })),
+      setGitPanelOpen: (open) => set({ gitPanelOpen: open }),
 
       setColor: (key, value) => set((s) => ({
         colors: { ...s.colors, [key]: value },
